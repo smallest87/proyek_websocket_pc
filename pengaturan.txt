@@ -1,0 +1,12 @@
+Ketentuan
+=========
+IPv4 = 0.0.0.0
+port = 8080
+bahasa pemrograman = python
+nama file server = ws_server
+nama file kontrol = ws_controlroom.html
+nama file client = ws_output.html
+
+Ketentuan lain
+==============
+file kontrol berisi tentang kontrol yang bisa ditampilkan realtime ke file client

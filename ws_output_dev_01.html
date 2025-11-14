@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Klien Output Real-time</title>
+    <!-- Memuat Tailwind CSS untuk styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #e2e8f0; }
+        .card { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+        @keyframes pulse-fade {
+            0% { background-color: #d1fae5; }
+            50% { background-color: #f9f9f9; }
+            100% { background-color: #f9f9f9; }
+        }
+        
+        /* Styling Marquee Kustom */
+        #realTimeMarquee {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 48px;
+            z-index: 100;
+            opacity: 0;
+            visibility: hidden;
+            /* Marquee hilang/muncul perlahan (0.5s) */
+            transition: opacity 0.5s ease-in-out, visibility 0.5s ease-in-out; 
+            border-bottom: 2px solid #b45309;
+            overflow: hidden; /* Penting untuk menyembunyikan konten di luar wrapper */
+        }
+        #realTimeMarquee.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* Wrapper untuk efek pergeseran */
+        #marqueeContentWrapper {
+            display: flex;
+            align-items: center;
+            height: 100%;
+            width: fit-content; /* Pastikan lebar sesuai konten */
+            white-space: nowrap;
+        }
+
+        /* Keyframes akan didefinisikan secara dinamis oleh JS */
+        
+        .scrolling {
+            animation-iteration-count: infinite;
+            animation-timing-function: linear;
+            animation-play-state: running; 
+        }
+        
+        .marquee-item {
+            display: inline-block;
+            padding: 0 1rem;
+            font-weight: 700;
+        }
+        
+        .item-divider {
+            color: #f59e0b; /* Kuning-500 */
+            padding: 0 0.5rem;
+        }
+    </style>
+</head>
+<body class="p-8 flex items-center justify-center min-h-screen relative">
+
+    <!-- ELEMEN MARQUEE BARU (Custom Div) -->
+    <div id="realTimeMarquee" class="bg-yellow-300 text-yellow-900 font-extrabold text-xl">
+        <div id="marqueeContentWrapper" class="marquee-content-wrapper">
+            <!-- Rangkaian span item akan diisi oleh JavaScript -->
+        </div>
+    </div>
+    <!-- AKHIR ELEMEN MARQUEE -->
+
+    <div id="app" class="card bg-white p-6 md:p-10 rounded-xl w-full max-w-xl transition-all duration-300">
+        <h1 class="text-3xl font-bold text-gray-800 mb-4 border-b-2 pb-2 text-green-600">Output Client (Penerima)</h1>
+        <p class="text-sm text-red-500 mb-4">Pastikan server Python (ws_server.py) sudah berjalan!</p>
+
+        <div id="status" class="mb-4 p-3 rounded-lg text-sm font-medium transition-colors duration-300 bg-red-100 text-red-700">
+            Status: Menghubungkan...
+        </div>
+        
+        <!-- Kontrol Teks Status Real-time -->
+        <div class="mb-5 text-center">
+            <span id="realTimeStatus" class="inline-block px-4 py-2 bg-indigo-500 text-white font-bold rounded-full shadow-lg transition-opacity duration-300 opacity-0">
+                STATUS AKTIF (Dikendalikan dari Kontrol)
+            </span>
+        </div>
+
+        <h2 class="text-xl font-semibold text-gray-700 mb-3">Data Teks Diterima:</h2>
+        <div id="outputMessages" class="h-64 overflow-y-auto bg-gray-50 p-4 rounded-lg border-2 border-green-300 space-y-3">
+            <p class="text-gray-500 italic">Menunggu pesan dari Control Room...</p>
+        </div>
+
+    </div>
+
+    <script>
+        const port = 8080;      
+        // IP PENTING: Menggunakan IP server lokal: 192.168.0.123
+        const wsUrl = `ws://192.168.0.123:${port}`;
+        
+        const statusDiv = document.getElementById('status');
+        const outputMessagesDiv = document.getElementById('outputMessages');
+        const realTimeStatusSpan = document.getElementById('realTimeStatus');
+        const realTimeMarqueeDiv = document.getElementById('realTimeMarquee'); 
+        const marqueeContentWrapper = document.getElementById('marqueeContentWrapper'); 
+
+        let ws;
+
+        // Fungsi BARU: Membangun konten Marquee dari array item
+        function buildMarqueeContent(items) {
+            let html = '';
+            const divider = '<span class="item-divider"> • </span>';
+            
+            // Gunakan satu div untuk menampung konten, yang akan digandakan.
+            // Ini untuk memastikan lebar yang tepat untuk keyframe.
+            const content = items.map((item, index) => {
+                let itemHtml = `<span class="marquee-item">${item}</span>`;
+                if (index < items.length - 1) {
+                    itemHtml += divider;
+                }
+                return itemHtml;
+            }).join('');
+
+            // Untuk scrolling tanpa batas (seamless scroll), kita harus menggandakan kontennya
+            // Tambahkan pembatas di antara konten yang digandakan agar ada jarak
+            return `<div id="originalContent">${content} ${divider}</div><div id="duplicateContent">${content} ${divider}</div>`;
+        }
+        
+        // Fungsi BARU: Menghitung durasi animasi berdasarkan lebar konten
+        function updateMarqueeAnimation() {
+            // Hapus animasi lama
+            const styleElement = document.getElementById('marqueeStyle');
+            if (styleElement) {
+                styleElement.remove();
+            }
+            
+            // Dapatkan elemen div konten asli (yang berisi rangkaian span)
+            const originalContent = document.getElementById('originalContent');
+            if (!originalContent) return;
+
+            // Dapatkan lebar total konten tersebut (scrollWidth adalah lebar penuh konten, termasuk yang tersembunyi)
+            const contentWidth = originalContent.scrollWidth;
+            const scrollSpeed = 50; // pixel per second
+            const duration = contentWidth / scrollSpeed;
+            
+            // 1. Set lebar wrapper agar konten duplikat pas di sebelahnya
+            marqueeContentWrapper.style.width = `${contentWidth * 2}px`;
+            
+            // 2. Buat style tag baru untuk keyframes
+            const newStyle = document.createElement('style');
+            newStyle.id = 'marqueeStyle';
+            // Keyframe menggeser konten sebesar lebar konten asli (50% dari wrapper)
+            newStyle.textContent = `
+                @keyframes scroll {
+                    0% { transform: translateX(0); }
+                    100% { transform: translateX(-${contentWidth}px); } 
+                }
+                #marqueeContentWrapper {
+                    animation-name: scroll;
+                    animation-duration: ${duration}s;
+                }
+            `;
+            document.head.appendChild(newStyle);
+            
+            // Tambahkan kelas scrolling untuk memulai animasi
+            marqueeContentWrapper.classList.add('scrolling');
+            // Pastikan animasi berjalan (running) saat ditampilkan
+            marqueeContentWrapper.style.animationPlayState = 'running'; 
+        }
+
+
+        function updateStatus(message, colorClass) {
+            statusDiv.textContent = `Status: ${message}`;
+            statusDiv.className = `mb-4 p-3 rounded-lg text-sm font-medium transition-colors duration-300 ${colorClass}`;
+        }
+
+        function appendMessage(data) {
+            // Hapus pesan "Menunggu..." jika ada
+            const placeholder = outputMessagesDiv.querySelector('p.italic');
+            if (placeholder) {
+                placeholder.remove();
+            }
+
+            const time = new Date().toLocaleTimeString();
+            const messageElement = document.createElement('div');
+            // Gunakan animasi kustom untuk efek "pesan masuk"
+            messageElement.className = 'p-3 bg-white border border-gray-100 rounded-lg shadow-sm text-gray-800 break-words';
+            messageElement.style.animation = 'pulse-fade 0.8s ease-out';
+            
+            messageElement.innerHTML = `
+                <span class="font-bold text-green-600 text-base">Pesan Baru:</span>
+                <span class="font-mono text-sm block mt-1">${data}</span>
+                <span class="text-xs text-gray-400 float-right">${time}</span>
+            `;
+            outputMessagesDiv.appendChild(messageElement);
+            
+            // Gulir ke bawah
+            outputMessagesDiv.scrollTop = outputMessagesDiv.scrollHeight;
+        }
+        
+        function handleToggleCommand() {
+            // Fungsi untuk mengaktifkan/menonaktifkan teks status
+            const isVisible = realTimeStatusSpan.classList.toggle('opacity-0');
+            console.log(`Status text visibility toggled to: ${!isVisible}`);
+        }
+        
+        // FUNGSI UTAMA BARU: Menangani Perintah Marquee
+        function handleMarqueeCommand(data) {
+            if (data.show && data.items && Array.isArray(data.items) && data.items.length > 0) {
+                // Tampilkan Marquee
+                // 1. Buat dan masukkan konten baru
+                marqueeContentWrapper.innerHTML = buildMarqueeContent(data.items);
+                
+                // 2. Aktifkan tampilan marquee
+                realTimeMarqueeDiv.classList.add('show');
+                
+                // 3. Perbarui animasi setelah konten disetel (DOM dihitung)
+                setTimeout(updateMarqueeAnimation, 50); 
+                
+                console.log(`Marquee ditampilkan dengan ${data.items.length} item.`);
+            } else {
+                // Sembunyikan Marquee
+                
+                // --- REVISI: Hapus penghentian paksa animasi ('paused') ---
+                // Kita biarkan animasi tetap 'running' agar teks terus berjalan 
+                // saat proses fade-out berlangsung.
+                
+                // 1. Aktifkan transisi fade-out (opacity 1 -> 0)
+                realTimeMarqueeDiv.classList.remove('show');
+                
+                console.log('Marquee disembunyikan (masih bergerak)');
+                
+                // 2. Hapus konten dan properti animasi setelah transisi fade-out selesai
+                setTimeout(() => {
+                    if (!realTimeMarqueeDiv.classList.contains('show')) {
+                        marqueeContentWrapper.innerHTML = '';
+                        // Hapus kelas scrolling agar tidak mempengaruhi tampilan berikutnya
+                        marqueeContentWrapper.classList.remove('scrolling'); 
+                        // Hapus properti play state untuk reset total
+                        marqueeContentWrapper.style.animationPlayState = ''; 
+                    }
+                }, 500); // 500ms sesuai dengan CSS transition opacity (0.5s)
+            }
+        }
+
+
+        function connectWebSocket() {
+            try {
+                ws = new WebSocket(wsUrl);
+                updateStatus("Menghubungkan...", "bg-yellow-100 text-yellow-700");
+
+                ws.onopen = () => {
+                    updateStatus("Terkoneksi, siap menerima data!", "bg-green-100 text-green-700");
+                };
+
+                ws.onmessage = (event) => {
+                    const data = event.data;
+                    
+                    if (data === "TOGGLE_STATUS_TEXT") {
+                        handleToggleCommand();
+                    } else {
+                        // Coba parse data sebagai JSON (untuk perintah Marquee)
+                        try {
+                            const json = JSON.parse(data);
+                            if (json.type === "MARQUEE_UPDATE") {
+                                handleMarqueeCommand(json);
+                            } else {
+                                // Jika JSON tapi bukan perintah, perlakukan sebagai pesan teks biasa
+                                appendMessage(data);
+                            }
+                        } catch (e) {
+                            // Jika gagal parse JSON, perlakukan sebagai pesan teks biasa
+                            appendMessage(data);
+                        }
+                    }
+                };
+
+                ws.onclose = (event) => { 
+                    updateStatus("Terputus. Mencuba menghubungkan kembali...", "bg-red-100 text-red-700");
+                    // Log maklumat diagnostik
+                    console.error(`Koneksi terputus. Kode: ${event.code}. Sebab: ${event.reason || 'Tidak ada sebab spesifik'}. Mencoba lagi dalam 3 detik...`); 
+                    setTimeout(connectWebSocket, 3000); // Coba hubungkan kembali
+                };
+
+                ws.onerror = (error) => {
+                    console.error(`Kesalahan WebSocket: ${error}`);
+                    ws.close();
+                };
+
+            } catch (e) {
+                console.error(`Gagal membuat koneksi WebSocket: ${e}`);
+            }
+        }
+
+        // Mulai koneksi saat halaman dimuat
+        window.onload = connectWebSocket;
+    </script>
+</body>
+</html>

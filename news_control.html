@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Kontrol Berita</title>
+    <!-- Memuat Tailwind CSS untuk styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+            padding: 24px;
+        }
+        .input-group label {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 4px;
+            display: block;
+        }
+        .animate-spin {
+             animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+             from { transform: rotate(0deg); }
+             to { transform: rotate(360deg); }
+        }
+        /* Mengatur input teks menjadi lebih jelas ketika readonly */
+        input[readonly] {
+            background-color: #e5e7eb; /* gray-200 */
+            cursor: default;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="max-w-md mx-auto bg-white p-6 rounded-xl shadow-lg">
+        <h1 class="text-2xl font-bold mb-6 text-gray-800">Panel Kontrol Kartu Berita</h1>
+        
+        <div class="space-y-4" id="control-form">
+            
+            <!-- Input Jalur Relatif Gambar (Menggunakan Dialog File) -->
+            <div class="input-group">
+                <label for="input-thumbnail-path">Jalur Relatif Gambar (Thumbnail)</label>
+                
+                <div class="flex space-x-2">
+                    <!-- Input Teks (Readonly) untuk menampilkan nama file yang dipilih -->
+                    <input type="text" id="input-thumbnail-path" placeholder="Nama berkas..."
+                           class="flex-grow p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                           readonly> 
+                    
+                    <!-- Tombol untuk memicu dialog file -->
+                    <button id="browse-file-btn" type="button" 
+                            class="bg-indigo-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-600 transition duration-150 shadow-md">
+                        Pilih Berkas
+                    </button>
+                </div>
+
+                <!-- Input File tersembunyi yang akan membuka dialog Windows -->
+                <input type="file" id="hidden-file-input" class="hidden" accept="image/*"> 
+
+                <p class="text-xs mt-1 text-gray-500">
+                    Nama berkas yang dipilih (jalur relatif) akan ditampilkan di atas.
+                </p>
+            </div>
+            
+            <!-- Input Text Judul -->
+            <div class="input-group">
+                <label for="input-judul">Judul Konten</label>
+                <input type="text" id="input-judul" placeholder="Masukkan judul berita"
+                       class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <!-- Input Text Caption -->
+            <div class="input-group">
+                <div class="flex items-center mb-1">
+                    <input type="checkbox" id="toggle-caption" class="form-checkbox h-4 w-4 text-indigo-600 transition duration-150 ease-in-out rounded border-gray-300" checked>
+                    <label for="toggle-caption" class="ml-2 text-sm font-semibold text-gray-700">Tampilkan Teks Caption</label>
+                </div>
+                <textarea id="input-caption" placeholder="Masukkan deskripsi singkat konten" rows="3"
+                          class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+            </div>
+
+            <!-- Input Text Sumber -->
+            <div class="input-group">
+                <label for="input-sumber">Sumber Berita</label>
+                <input type="text" id="input-sumber" placeholder="cth: javasatu.com"
+                       class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <!-- Tombol Update (mengirim data) -->
+            <button id="update-btn"
+                    class="w-full bg-indigo-600 text-white font-semibold py-2 rounded-lg hover:bg-indigo-700 transition duration-150 shadow-md">
+                Perbarui Konten Kartu
+            </button>
+            
+            <hr class="my-6 border-gray-200">
+
+            <!-- Tombol Fly In/Out (mengirim perintah) -->
+            <button id="toggle-btn"
+                    class="w-full bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600 transition duration-150 shadow-md">
+                Fly In / Fly Out Kartu (ENTER)
+            </button>
+            
+        </div>
+        
+        <!-- Status koneksi WebSocket -->
+        <div class="mt-4 p-3 bg-gray-100 text-gray-800 rounded-lg text-sm flex items-center border border-gray-300">
+            <svg id="ws-status-icon" class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <!-- Icon will be updated by JS -->
+            </svg>
+            <span id="ws-status-text">Menghubungkan ke WebSocket...</span>
+        </div>
+        
+        <!-- Log Koneksi (BARU: Untuk Debugging) -->
+        <div class="mt-4">
+            <div class="text-xs text-gray-600 mb-1">Log Koneksi</div>
+            <div id="log" class="h-16 overflow-y-auto bg-gray-50 p-2 rounded text-xs text-gray-600 border border-gray-300 space-y-1">
+                <!-- Log akan muncul di sini -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Kode JavaScript untuk Mengirim Pesan Kontrol via WebSocket -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Elemen untuk fitur pemilihan file
+            const inputThumbnailPath = document.getElementById('input-thumbnail-path'); 
+            const browseFileBtn = document.getElementById('browse-file-btn');
+            const hiddenFileInput = document.getElementById('hidden-file-input');
+            
+            const inputJudul = document.getElementById('input-judul');
+            const inputCaption = document.getElementById('input-caption');
+            const toggleCaption = document.getElementById('toggle-caption'); // NEW
+            const inputSumber = document.getElementById('input-sumber');
+            const updateBtn = document.getElementById('update-btn');
+            const toggleBtn = document.getElementById('toggle-btn');
+            const wsStatusText = document.getElementById('ws-status-text');
+            const wsStatusIcon = document.getElementById('ws-status-icon');
+            const logDiv = document.getElementById('log');
+
+            // PENGATURAN WEBSOCKET
+            const port = 8080;
+            const ip = "192.168.0.100";
+            const wsUrl = `ws://${ip}:${port}`;
+            
+            let ws = null;
+            let isConnected = false;
+
+            // SVG Icons
+            const svgConnected = '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>';
+            const svgConnecting = '<circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M10 2v2M18 10h-2M10 18v-2M2 10h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>';
+            const svgDisconnected = '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>';
+
+            // --- DEBOUNCE FUNCTION ---
+            function debounce(func, timeout = 300) {
+                let timer;
+                return (...args) => {
+                    clearTimeout(timer);
+                    timer = setTimeout(() => {
+                        func.apply(this, args);
+                    }, timeout);
+                };
+            }
+            const debouncedSendUpdate = debounce(sendUpdate, 300);
+            // -------------------------
+
+            function updateStatusIcon(status) {
+                wsStatusIcon.classList.remove('text-green-500', 'text-yellow-500', 'text-red-500', 'animate-spin');
+                if (status === 'connected') {
+                    wsStatusIcon.innerHTML = svgConnected;
+                    wsStatusIcon.classList.add('text-green-500');
+                } else if (status === 'connecting') {
+                    wsStatusIcon.innerHTML = svgConnecting;
+                    wsStatusIcon.classList.add('text-yellow-500', 'animate-spin');
+                } else {
+                    wsStatusIcon.innerHTML = svgDisconnected;
+                    wsStatusIcon.classList.add('text-red-500');
+                }
+            }
+            
+            function appendLog(message, type = 'info') {
+                const time = new Date().toLocaleTimeString();
+                const logEntry = document.createElement('div');
+                logEntry.innerHTML = `<span>[${time}]</span> ${message}`;
+                logEntry.className = type === 'error' ? 'text-red-600' : 'text-gray-600';
+                logDiv.appendChild(logEntry);
+                logDiv.scrollTop = logDiv.scrollHeight;
+            }
+
+            function setControlsDisabled(disabled) {
+                updateBtn.disabled = disabled;
+                toggleBtn.disabled = disabled;
+                inputThumbnailPath.disabled = disabled; 
+                browseFileBtn.disabled = disabled; 
+                inputJudul.disabled = disabled;
+                inputCaption.disabled = disabled;
+                toggleCaption.disabled = disabled; // NEW
+                inputSumber.disabled = disabled;
+            }
+            
+            // FUNGSI UTAMA KONEKSI DENGAN LOGIKA RECONNECT
+            function connectWebSocket() {
+                wsStatusText.textContent = 'Menghubungkan...';
+                updateStatusIcon('connecting');
+                setControlsDisabled(true);
+                
+                try {
+                    ws = new WebSocket(wsUrl);
+
+                    ws.onopen = () => {
+                        isConnected = true;
+                        wsStatusText.textContent = 'Tersambung ke WebSocket!';
+                        updateStatusIcon('connected');
+                        setControlsDisabled(false);
+                        appendLog('Tersambung ke server WebSocket.', 'info');
+                        sendUpdate(); // Kirim status awal
+                    };
+
+                    ws.onclose = (event) => {
+                        isConnected = false;
+                        wsStatusText.textContent = 'Koneksi terputus. Mencoba lagi...';
+                        updateStatusIcon('disconnected');
+                        setControlsDisabled(true);
+                        appendLog('Koneksi terputus. Mencoba menghubungkan kembali dalam 3s...', 'error');
+                        setTimeout(connectWebSocket, 3000); // Coba sambung ulang setelah 3 detik
+                    };
+
+                    ws.onerror = (error) => {
+                        console.error('WebSocket Control Error:', error);
+                        if (ws.readyState !== WebSocket.CLOSED) {
+                            ws.close();
+                        }
+                    };
+
+                } catch (e) {
+                    appendLog(`Gagal membuat koneksi WebSocket: ${e.message}`, 'error');
+                    setTimeout(connectWebSocket, 3000);
+                }
+            }
+
+            // Fungsi untuk mengirim data
+            function sendData(data) {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(data);
+                } else {
+                    appendLog("Gagal mengirim: Koneksi tidak terbuka.", 'error');
+                }
+            }
+
+            // Fungsi untuk mengirim pesan pembaruan konten (UPDATE_CONTENT)
+            function sendUpdate() {
+                // Mengambil nilai dari input teks (yang berisi nama file/jalur relatif)
+                const payload = {
+                    thumbnail: inputThumbnailPath.value, 
+                    judul: inputJudul.value,
+                    caption: inputCaption.value,
+                    showCaption: toggleCaption.checked, // NEW: Status checkbox
+                    sumber: inputSumber.value,
+                };
+
+                const message = {
+                    command: 'UPDATE_CONTENT',
+                    payload: payload
+                };
+
+                sendData(JSON.stringify(message));
+                appendLog('Mengirim pembaruan konten.', 'info');
+            }
+
+            // Fungsi untuk mengirim perintah toggle visibility (TOGGLE_VISIBILITY)
+            function sendToggle() {
+                const message = {
+                    command: 'TOGGLE_VISIBILITY'
+                };
+                
+                sendData(JSON.stringify(message));
+                appendLog('Mengirim perintah TOGGLE (Fly In/Out).', 'info');
+            }
+
+            // --- LOGIKA PEMILIHAN FILE ---
+            browseFileBtn.addEventListener('click', () => {
+                if (isConnected) {
+                    hiddenFileInput.click(); // Memicu dialog file
+                } else {
+                    appendLog("Gagal: Koneksi terputus. Tidak dapat membuka dialog berkas.", 'error');
+                }
+            });
+
+            hiddenFileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const fileName = file.name; 
+                    inputThumbnailPath.value = fileName; 
+                    appendLog(`Nama berkas dipilih: ${fileName}`, 'info');
+                    if (isConnected) {
+                        debouncedSendUpdate();
+                    }
+                }
+                hiddenFileInput.value = ''; 
+            });
+            // ------------------------------
+
+            // --- LOGIKA SHORTCUT KEY (ENTER) ---
+            document.addEventListener('keydown', (event) => {
+                // Pastikan koneksi aktif dan tombol Enter ditekan
+                if (isConnected && event.key === 'Enter') {
+                    // Hindari menjalankan toggle jika pengguna sedang mengetik di textarea atau input teks biasa.
+                    // Jika elemen aktif (focus) BUKAN tombol, tombol, atau input, jalankan toggle.
+                    const focusedElement = document.activeElement;
+                    const isInput = focusedElement.tagName === 'INPUT' && focusedElement.type !== 'checkbox';
+                    const isTextarea = focusedElement.tagName === 'TEXTAREA';
+                    
+                    if (!isInput && !isTextarea) {
+                        event.preventDefault(); // Mencegah tindakan default (misalnya, mengirimkan form)
+                        sendToggle();
+                    }
+                    // Jika tombol Fly In/Out sedang fokus, browser akan otomatis memicu klik.
+                }
+            });
+            // -----------------------------------
+
+
+            // Event Listeners
+            updateBtn.addEventListener('click', sendUpdate);
+            toggleBtn.addEventListener('click', sendToggle);
+            
+            // Gunakan debounced update untuk semua input teks dan checkbox
+            document.getElementById('control-form').addEventListener('input', (event) => {
+                if (isConnected) {
+                    // Checkbox juga memicu pembaruan
+                    if (event.target.id === 'toggle-caption') {
+                        sendUpdate(); // Checkbox harus segera mengirim update tanpa debounce
+                    } else if (event.target.id !== 'input-thumbnail-path') {
+                        debouncedSendUpdate();
+                    }
+                }
+            });
+
+            // Mulai koneksi
+            connectWebSocket();
+        });
+    </script>
+
+</body>
+</html>

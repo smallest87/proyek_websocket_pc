@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kontrol Ruangan Real-time</title>
+    <!-- Memuat Tailwind CSS untuk styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        .card { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+    </style>
+</head>
+<body class="p-8 flex items-center justify-center min-h-screen">
+
+    <div id="app" class="card bg-white p-6 md:p-10 rounded-xl w-full max-w-lg transition-all duration-300">
+        <h1 class="text-3xl font-bold text-gray-800 mb-4 border-b-2 pb-2">Control Room (Pengirim)</h1>
+        <p class="text-sm text-red-500 mb-4">Pastikan server Python (ws_server.py) sudah berjalan!</p>
+
+        <div id="status" class="mb-4 p-3 rounded-lg text-sm font-medium transition-colors duration-300 bg-red-100 text-red-700">
+            Status: Menghubungkan...
+        </div>
+
+        <!-- Formulir Pengiriman Pesan Teks Umum -->
+        <div class="space-y-4 mb-8 p-4 border rounded-lg bg-gray-50">
+            <h2 class="text-lg font-semibold text-gray-700">Kirim Pesan Teks</h2>
+            <div>
+                <label for="messageInput" class="block text-sm font-medium text-gray-700 mb-1">Pesan untuk Klien:</label>
+                <input type="text" id="messageInput" placeholder="Ketik pesan atau perintah di sini..."
+                       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150">
+            </div>
+
+            <button id="sendButton" onclick="sendMessage()"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 disabled:opacity-50"
+                    disabled>
+                Kirim Pesan Real-time
+            </button>
+        </div>
+        
+        <!-- Kontrol Marquee Dinamis BARU -->
+        <div class="space-y-4 mb-8 p-4 border rounded-lg bg-yellow-50">
+            <h2 class="text-lg font-semibold text-gray-700">Kontrol Marquee Dinamis (Daftar Pesan)</h2>
+            <div id="marqueeInputContainer" class="space-y-2">
+                <!-- Input Marquee akan ditambahkan di sini secara dinamis -->
+            </div>
+            
+            <button id="addMarqueeItemButton" onclick="addMarqueeItem()"
+                    class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 disabled:opacity-50"
+                    disabled>
+                + Tambah Item Marquee
+            </button>
+
+            <button id="sendMarqueeButton" onclick="sendMarqueeCommand()"
+                    class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 disabled:opacity-50"
+                    disabled>
+                Kirim & Tampilkan Marquee
+            </button>
+            <button id="hideMarqueeButton" onclick="hideMarqueeCommand()"
+                    class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 disabled:opacity-50"
+                    disabled>
+                Sembunyikan Marquee
+            </button>
+        </div>
+
+
+        <!-- Kontrol Khusus LAMA -->
+        <div class="space-y-4 p-4 border rounded-lg bg-indigo-50">
+            <h2 class="text-lg font-semibold text-gray-700">Kontrol Teks Status</h2>
+             <button id="toggleButton" onclick="sendToggleCommand()"
+                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 disabled:opacity-50"
+                    disabled>
+                Toggle Teks Status Klien
+            </button>
+        </div>
+
+
+        <div class="mt-6">
+            <h2 class="text-xl font-semibold text-gray-700 mb-2">Log Aksi:</h2>
+            <div id="log" class="h-32 overflow-y-auto bg-gray-100 p-3 rounded-lg text-xs text-gray-600 border border-gray-200 space-y-1">
+                <!-- Log akan muncul di sini -->
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const port = 8080;      
+        // IP PENTING: Menggunakan IP server lokal: 192.168.0.123
+        const wsUrl = `ws://192.168.0.123:${port}`;
+        
+        const statusDiv = document.getElementById('status');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const toggleButton = document.getElementById('toggleButton');
+        const marqueeInputContainer = document.getElementById('marqueeInputContainer'); // BARU
+        const addMarqueeItemButton = document.getElementById('addMarqueeItemButton'); // BARU
+        const sendMarqueeButton = document.getElementById('sendMarqueeButton');
+        const hideMarqueeButton = document.getElementById('hideMarqueeButton');
+        const logDiv = document.getElementById('log');
+
+        let ws;
+        let itemCounter = 0;
+
+        // Fungsi BARU untuk menambahkan input item marquee
+        function addMarqueeItem(initialValue = '') {
+            itemCounter++;
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex items-center space-x-2';
+            wrapper.id = `item-wrapper-${itemCounter}`;
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.id = `marquee-item-${itemCounter}`;
+            input.value = initialValue;
+            input.placeholder = `Item Marquee ${itemCounter}`;
+            input.className = 'flex-grow p-2 border border-gray-300 rounded-lg focus:ring-yellow-500 focus:border-yellow-500 transition duration-150 text-sm';
+
+            const removeButton = document.createElement('button');
+            removeButton.textContent = 'Hapus';
+            removeButton.className = 'bg-red-500 hover:bg-red-600 text-white text-sm py-2 px-3 rounded-lg transition duration-150';
+            removeButton.onclick = () => wrapper.remove();
+            
+            wrapper.appendChild(input);
+            wrapper.appendChild(removeButton);
+            marqueeInputContainer.appendChild(wrapper);
+        }
+
+        // Tambahkan 2 input awal saat dimuat
+        addMarqueeItem('Pesan Penting: Sistem baru telah diluncurkan!');
+        addMarqueeItem('Info: Klien Output kini menampilkan daftar pesan!');
+
+        function updateStatus(message, colorClass) {
+            statusDiv.textContent = `Status: ${message}`;
+            statusDiv.className = `mb-4 p-3 rounded-lg text-sm font-medium transition-colors duration-300 ${colorClass}`;
+        }
+
+        function appendLog(message, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<span class="font-bold">[${time}]</span> ${message}`;
+            logEntry.className = type === 'error' ? 'text-red-600' : 'text-gray-600';
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function setControlsDisabled(disabled) {
+            sendButton.disabled = disabled;
+            toggleButton.disabled = disabled;
+            sendMarqueeButton.disabled = disabled;
+            hideMarqueeButton.disabled = disabled;
+            addMarqueeItemButton.disabled = disabled; // BARU
+            // Nonaktifkan semua tombol hapus
+            document.querySelectorAll('#marqueeInputContainer button').forEach(btn => btn.disabled = disabled);
+        }
+
+        function connectWebSocket() {
+            try {
+                ws = new WebSocket(wsUrl);
+                updateStatus("Menghubungkan...", "bg-yellow-100 text-yellow-700");
+                setControlsDisabled(true);
+
+                ws.onopen = () => {
+                    updateStatus("Terkoneksi!", "bg-green-100 text-green-700");
+                    setControlsDisabled(false);
+                    appendLog("Terkoneksi ke server WebSocket.", 'success');
+                };
+
+                ws.onclose = () => {
+                    updateStatus("Terputus. Mencoba menghubungkan kembali...", "bg-red-100 text-red-700");
+                    setControlsDisabled(true);
+                    appendLog("Koneksi terputus. Mencoba lagi dalam 3 detik...", 'error');
+                    setTimeout(connectWebSocket, 3000);
+                };
+
+                ws.onerror = (error) => {
+                    if (ws.readyState === WebSocket.CONNECTING) {
+                        appendLog(`Gagal terhubung. Pastikan IP: ${wsUrl} sudah benar dan server berjalan.`, 'error');
+                    } else {
+                        appendLog(`Kesalahan WebSocket: ${error}`, 'error');
+                    }
+                    ws.close();
+                };
+
+            } catch (e) {
+                appendLog(`Gagal membuat koneksi WebSocket: ${e}`, 'error');
+            }
+        }
+
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (message === "") {
+                appendLog("Pesan teks biasa tidak boleh kosong.", 'error');
+                return;
+            }
+            sendData(message);
+            messageInput.value = '';
+        }
+        
+        function sendToggleCommand() {
+            const command = "TOGGLE_STATUS_TEXT";
+            sendData(command);
+            appendLog(`Mengirim Perintah Khusus: "${command}"`);
+        }
+        
+        // FUNGSI BARU: Mengirim perintah Marquee
+        function sendMarqueeCommand() {
+            // 1. Kumpulkan semua nilai dari input marquee
+            const inputs = marqueeInputContainer.querySelectorAll('input[type="text"]');
+            const items = [];
+            inputs.forEach(input => {
+                const text = input.value.trim();
+                if (text) {
+                    items.push(text);
+                }
+            });
+
+            if (items.length === 0) {
+                appendLog("Daftar item marquee tidak boleh kosong.", 'error');
+                return;
+            }
+            
+            // 2. Buat objek perintah JSON
+            const commandObject = {
+                type: "MARQUEE_UPDATE",
+                items: items, // Menggunakan array string
+                show: true
+            };
+            
+            // 3. Kirim sebagai JSON stringified
+            const command = JSON.stringify(commandObject);
+            sendData(command);
+            
+            appendLog(`Mengirim Perintah Marquee (Tampilkan). Jumlah item: ${items.length}`);
+        }
+        
+        // FUNGSI Marquee (Sembunyikan)
+        function hideMarqueeCommand() {
+             const command = JSON.stringify({
+                type: "MARQUEE_UPDATE",
+                show: false
+            });
+            sendData(command);
+            appendLog(`Mengirim Perintah Marquee (Sembunyikan)`);
+        }
+
+
+        function sendData(data) {
+             if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(data);
+            } else {
+                appendLog("Gagal mengirim: Koneksi tidak terbuka.", 'error');
+            }
+        }
+
+        
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Mulai koneksi saat halaman dimuat
+        window.onload = connectWebSocket;
+    </script>
+</body>
+</html>

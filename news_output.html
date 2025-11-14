@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kartu Konten Sederhana (Display)</title>
+    <!-- Memuat Tailwind CSS untuk styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Mengatur font dasar untuk tampilan yang lebih modern */
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Latar belakang diatur menjadi transparan */
+            background-color: transparent; 
+            min-height: 100vh;
+        }
+
+        /* 1. Kondisi Tersembunyi (Posisi Default CSS) */
+        #animated-card {
+            /* Pindah sepenuhnya ke kiri (100% dari lebar kartu + 50px buffer) agar tidak terlihat */
+            transform: translateX(calc(-100% - 50px)); 
+            /* Kecepatan transisi 333ms */
+            transition: transform 333ms ease-out;
+        }
+
+        /* 2. Kondisi Terlihat (Kelas yang Di-toggle oleh JavaScript) */
+        .is-visible {
+            /* Dorong kembali ke posisi aslinya (Fly In) */
+            transform: translateX(0) !important; 
+        }
+    </style>
+</head>
+<body>
+
+    <!--
+      Wadah utama untuk kartu konten.
+      Kartu dimulai tersembunyi secara default.
+    -->
+    <div 
+        id="animated-card"
+        class="fixed top-6 left-6 max-w-sm bg-white shadow-xl rounded-xl overflow-hidden 
+               hover:shadow-2xl cursor-default"
+        role="alert" 
+        aria-hidden="true"
+    >
+        
+        <!-- 1. Thumbnail Ukuran Sedang -->
+        <div class="thumbnail-container">
+            <img 
+                id="thumbnail-img"
+                src="https://placehold.co/320x180/4f46e5/ffffff?text=Default+Gambar" 
+                alt="Gambar Thumbnail" 
+                class="w-full h-auto object-cover rounded-t-xl"
+                onerror="this.onerror=null; this.src='https://placehold.co/320x180/1f2937/ffffff?text=Gagal+Memuat';"
+            >
+        </div>
+
+        <!-- Bagian Teks (Judul dan Caption) -->
+        <div class="p-4">
+            
+            <!-- 2. Label Judul -->
+            <h2 id="judul-teks" class="text-xl font-extrabold text-gray-900 mb-1 leading-tight">
+                Judul Konten Default
+            </h2>
+
+            <!-- 3. Teks Caption -->
+            <!-- Tambahkan ID ke elemen caption untuk kontrol visibilitas -->
+            <p id="caption-teks" class="text-sm text-gray-600">
+                Ini adalah teks deskripsi atau *caption* default. Konten akan diupdate dari panel kontrol.
+            </p>
+            
+        </div>
+
+        <!-- 4. Footer Kartu (Sumber) - Latar belakang hitam dan teks putih -->
+        <div id="sumber-teks-container" class="bg-black p-2 text-white text-xs font-medium text-right">
+            Sumber: default-sumber.com
+        </div>
+        
+    </div>
+
+    <!-- Kode JavaScript untuk Memicu Animasi dan Menerima Data via WebSocket -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const card = document.getElementById('animated-card');
+            const judulElement = document.getElementById('judul-teks');
+            const captionElement = document.getElementById('caption-teks');
+            const sumberContainer = document.getElementById('sumber-teks-container');
+            const thumbnailImg = document.getElementById('thumbnail-img');
+
+            // PENGATURAN WEBSOCKET
+            const port = 8080;
+            const ip = "192.168.0.100";
+            const wsUrl = `ws://${ip}:${port}`;
+
+            let ws = null;
+
+            // Fungsi untuk memperbarui konten kartu
+            function updateCardContent(data) {
+                if (data.judul) judulElement.textContent = data.judul;
+                if (data.caption !== undefined) captionElement.textContent = data.caption;
+                
+                // NEW: Kontrol visibilitas caption
+                if (data.showCaption !== undefined) {
+                    captionElement.classList.toggle('hidden', !data.showCaption);
+                }
+
+                if (data.sumber) {
+                    sumberContainer.textContent = `Sumber: ${data.sumber}`;
+                } else if (data.sumber === "") {
+                    sumberContainer.textContent = "";
+                }
+                
+                if (data.thumbnail) {
+                    thumbnailImg.src = data.thumbnail || "https://placehold.co/320x180/4f46e5/ffffff?text=Ganti+Gambar";
+                }
+            }
+
+            // Fungsi untuk mengelola koneksi WebSocket
+            function connectWebSocket() {
+                
+                try {
+                    ws = new WebSocket(wsUrl);
+
+                    ws.onopen = () => {
+                        console.log('WebSocket Output Connected.');
+                    };
+
+                    ws.onmessage = (event) => {
+                        try {
+                            const message = JSON.parse(event.data);
+                            
+                            if (message.command === 'TOGGLE_VISIBILITY') {
+                                // Memicu animasi fly-in/fly-out
+                                card.classList.toggle('is-visible');
+                                const isVisible = card.classList.contains('is-visible');
+                                card.setAttribute('aria-hidden', !isVisible);
+                            } else if (message.command === 'UPDATE_CONTENT' && message.payload) {
+                                // Memperbarui semua konten kartu
+                                updateCardContent(message.payload);
+                            }
+                        } catch (e) {
+                            console.error('Error parsing WS message:', e);
+                        }
+                    };
+
+                    ws.onclose = (event) => {
+                        console.log('WebSocket Output Disconnected:', event.reason);
+                        setTimeout(connectWebSocket, 5000); // Reconnect attempt
+                    };
+
+                    ws.onerror = (error) => {
+                        console.error('WebSocket Output Error:', error);
+                    };
+
+                } catch (e) {
+                    console.error("Error creating WebSocket:", e);
+                }
+            }
+
+            // Inisialisasi koneksi
+            connectWebSocket();
+
+            // Set default visibility to hidden (initial CSS state)
+            card.classList.remove('is-visible'); 
+        });
+    </script>
+
+</body>
+</html>

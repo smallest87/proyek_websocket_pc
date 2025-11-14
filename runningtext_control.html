@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kontrol Running Text Murni</title>
+    <!-- Memuat Tailwind CSS untuk styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #181818; 
+            margin: 0; 
+            padding: 0; 
+            display: flex; 
+            align-items: flex-start; 
+            justify-content: center; 
+            min-height: 100vh; 
+            width: 100%; 
+        }
+        
+        #app {
+            background-color: #2e2e2e; /* Warna abu-abu gelap */
+            color: #d1d5db; 
+            padding: 1rem; 
+            border-radius: 0; 
+            width: 100%;
+            height: 100vh; 
+            box-shadow: none; 
+            border: none; 
+            overflow-y: auto; 
+        }
+
+        /* Styling Input Marquee untuk dark mode */
+        .marquee-input {
+            background-color: #3f3f3f;
+            border-color: #555;
+            color: #d1d5db;
+        }
+        .marquee-input::placeholder {
+            color: #9ca3af;
+        }
+        .marquee-input:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+            outline: none;
+        }
+
+        /* Styling Slider */
+        #speedSlider, #topOffsetSlider, #heightSlider, #fontSizeSlider { 
+            height: 8px; 
+            background: #3f3f3f; 
+            border-radius: 4px;
+            outline: none;
+            cursor: pointer;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        #speedSlider::-webkit-slider-thumb,
+        #topOffsetSlider::-webkit-slider-thumb,
+        #heightSlider::-webkit-slider-thumb,
+        #fontSizeSlider::-webkit-slider-thumb { 
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px; 
+            height: 16px; 
+            background: #6366f1; 
+            border-radius: 50%;
+            margin-top: -4px; 
+            transition: background 0.2s ease-in-out;
+            border: none;
+            box-shadow: none;
+        }
+        
+    </style>
+</head>
+<body class="p-0"> <!-- Hapus padding dari body -->
+<div id="app">
+        <!-- Status Koneksi -->
+        <div id="status" class="mb-4 p-2 rounded text-xs font-medium transition-colors duration-300 bg-red-800 text-red-300">
+            Status: Menghubungkan...
+        </div>
+
+        
+        <!-- Kontrol Marquee Dinamis -->
+        <div class="space-y-3 mb-6 p-3 border border-gray-700 rounded-lg bg-gray-800">
+            <!-- Pesan -->
+            <div class="text-sm text-gray-400">Pesan Running Text</div>
+            
+            <div id="marqueeInputContainer" class="space-y-2">
+                <!-- Input Marquee akan ditambahkan di sini secara dinamis -->
+            </div>
+            
+            <button id="addMarqueeItemButton" onclick="addMarqueeItem()"
+                    class="w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-3 rounded-md transition duration-200 disabled:opacity-50 text-sm"
+                    disabled>
+                + Tambah Pesan
+            </button>
+            
+            <!-- Kontrol Kecepatan -->
+            <div class="pt-3 border-t border-gray-700 space-y-2">
+                <label for="speedSlider" class="block text-sm font-medium text-gray-400 flex justify-between">
+                    <span>Kecepatan (Skala 1-10):</span> 
+                    <span id="speedValue" class="font-mono text-sm text-indigo-400">5</span>
+                </label>
+
+                <!-- SLIDER DENGAN SKALA 1-10 -->
+                <input type="range" id="speedSlider" min="1" max="10" value="5" step="1"
+                       class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                <div class="flex justify-between text-xs text-gray-500">
+                    <span>1 (Pelan)</span>
+                    <span>10 (Cepat)</span>
+                </div>
+            </div>
+
+            <!-- KONTROL POSISI & FONT (OFFSIDE) -->
+            <div class="pt-3 border-t border-gray-700 space-y-2">
+                <p class="text-sm font-semibold text-gray-300 mb-2">Kontrol Posisi & Ukuran</p>
+                
+                <!-- Posisi Vertikal -->
+                <label for="topOffsetSlider" class="block text-sm font-medium text-gray-400 flex justify-between">
+                    <span>Posisi Vertikal (Top Offset):</span> 
+                    <span id="topOffsetValue" class="font-mono text-sm text-indigo-400">0</span> %
+                </label>
+                <input type="range" id="topOffsetSlider" min="0" max="100" value="0" step="1"
+                       class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                <div class="flex justify-between text-xs text-gray-500">
+                    <span>Atas (0%)</span>
+                    <span>Bawah (100%)</span>
+                </div>
+
+                <!-- Tinggi Pita -->
+                <label for="heightSlider" class="block text-sm font-medium text-gray-400 flex justify-between">
+                    <span>Tinggi Pita Marquee:</span> 
+                    <span id="heightValue" class="font-mono text-sm text-indigo-400">48</span> px
+                </label>
+                <input type="range" id="heightSlider" min="20" max="100" value="48" step="1"
+                       class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                <div class="flex justify-between text-xs text-gray-500">
+                    <span>Kecil (20px)</span>
+                    <span>Besar (100px)</span>
+                </div>
+
+                <!-- UKURAN FONT (EM) -->
+                <label for="fontSizeSlider" class="block text-sm font-medium text-gray-400 flex justify-between">
+                    <span>Ukuran Font:</span> 
+                    <span id="fontSizeValue" class="font-mono text-sm text-indigo-400">1.8</span> em
+                </label>
+                <!-- Nilai min/max: 1.0 hingga 3.0, Step 0.1 -->
+                <input type="range" id="fontSizeSlider" min="1.0" max="3.0" value="1.8" step="0.1"
+                       class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                <div class="flex justify-between text-xs text-gray-500">
+                    <span>1.0 em (Kecil)</span>
+                    <span>3.0 em (Besar)</span>
+                </div>
+            </div>
+            <!-- AKHIR KONTROL POSISI & FONT -->
+
+            <!-- KONTROL WARNA -->
+            <div class="pt-3 border-t border-gray-700 space-y-2">
+                 <p class="text-sm font-semibold text-gray-300 mb-2">Kontrol Warna</p>
+                <div class="flex space-x-4">
+                    <!-- Warna Latar Belakang -->
+                    <div class="flex-1">
+                        <label for="bgColorInput" class="block text-sm font-medium text-gray-400 mb-1">
+                            Latar Belakang
+                        </label>
+                        <input type="color" id="bgColorInput" value="#fbc531" 
+                               class="w-full h-10 p-1 border border-gray-600 rounded-md cursor-pointer bg-gray-700">
+                    </div>
+
+                    <!-- Warna Teks -->
+                    <div class="flex-1">
+                        <label for="textColorInput" class="block text-sm font-medium text-gray-400 mb-1">
+                            Warna Teks
+                        </label>
+                        <input type="color" id="textColorInput" value="#1f2937" 
+                               class="w-full h-10 p-1 border border-gray-600 rounded-md cursor-pointer bg-gray-700">
+                    </div>
+                </div>
+            </div>
+            <!-- AKHIR KONTROL WARNA -->
+
+
+            <div class="flex space-x-2 pt-2 border-t border-gray-700">
+                <button id="sendMarqueeButton" onclick="sendMarqueeCommand()"
+                        class="w-1/2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-3 rounded-md transition duration-200 disabled:opacity-30 text-sm"
+                        disabled>
+                    Kirim & Tampilkan
+                </button>
+                <button id="hideMarqueeButton" onclick="hideMarqueeCommand()"
+                        class="w-1/2 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-3 rounded-md transition duration-200 disabled:opacity-30 text-sm"
+                        disabled>
+                    Sembunyikan
+                </button>
+            </div>
+        </div>
+
+
+        <div class="mt-4">
+            <div class="text-sm text-gray-400 mb-1">Log Koneksi</div>
+            <!-- Log dengan background gelap -->
+            <div id="log" class="h-24 overflow-y-auto bg-gray-800 p-2 rounded text-xs text-gray-400 border border-gray-700 space-y-1">
+                <!-- Log akan muncul di sini -->
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const port = 8080;
+        const ip = "192.168.0.100";
+        const wsUrl = `ws://${ip}:${port}`;
+        
+        const statusDiv = document.getElementById('status');
+        const marqueeInputContainer = document.getElementById('marqueeInputContainer'); 
+        const addMarqueeItemButton = document.getElementById('addMarqueeItemButton'); 
+        const sendMarqueeButton = document.getElementById('sendMarqueeButton');
+        const hideMarqueeButton = document.getElementById('hideMarqueeButton');
+        
+        // Elemen Slider Posisi/Kecepatan
+        const speedSlider = document.getElementById('speedSlider'); 
+        const speedValueSpan = document.getElementById('speedValue'); 
+        const topOffsetSlider = document.getElementById('topOffsetSlider'); 
+        const topOffsetValueSpan = document.getElementById('topOffsetValue'); 
+        const heightSlider = document.getElementById('heightSlider'); 
+        const heightValueSpan = document.getElementById('heightValue'); 
+        const fontSizeSlider = document.getElementById('fontSizeSlider'); 
+        const fontSizeValueSpan = document.getElementById('fontSizeValue'); 
+        
+        // Elemen Warna
+        const bgColorInput = document.getElementById('bgColorInput'); 
+        const textColorInput = document.getElementById('textColorInput'); 
+
+        const logDiv = document.getElementById('log');
+
+        let ws;
+        let itemCounter = 0;
+        let isMarqueeActive = false; 
+        
+        // --- UTILITY: DEBOUNCE FUNCTION (SOLUSI LAG) ---
+        function debounce(func, timeout = 150) {
+            let timer;
+            return (...args) => {
+                clearTimeout(timer);
+                timer = setTimeout(() => {
+                    func.apply(this, args);
+                }, timeout);
+            };
+        }
+
+        // Debounced function untuk mengirim perintah real-time
+        const debouncedSendMarqueeCommand = debounce(sendMarqueeCommand, 150); 
+        // ------------------------------------------------
+
+        // --- LOGIKA KONVERSI KECEPATAN ---
+        const PX_MIN = 20;  
+        const PX_MAX = 150; 
+        const SLIDER_MIN = 1; 
+        const SLIDER_MAX = 10; 
+        
+        /**
+         * Mengkonversi nilai slider (1-10) menjadi nilai px/detik (20-150)
+         */
+        function convertSliderToPx(sliderValue) {
+            const normalized = (sliderValue - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN);
+            const pxSpeed = PX_MIN + normalized * (PX_MAX - PX_MIN);
+            return Math.round(pxSpeed);
+        }
+        // ----------------------------------------
+
+        // Listener untuk memperbarui nilai slider di UI DAN mengirim update real-time
+        function setupInputListener(element) {
+             element.addEventListener('input', () => {
+                // Perbarui tampilan nilai span segera
+                if (element.id === 'fontSizeSlider') {
+                    fontSizeValueSpan.textContent = parseFloat(element.value).toFixed(1);
+                } else if (element.id === 'speedSlider') {
+                    speedValueSpan.textContent = element.value;
+                } else if (element.id === 'topOffsetSlider') {
+                    topOffsetValueSpan.textContent = element.value;
+                } else if (element.id === 'heightSlider') {
+                    heightValueSpan.textContent = element.value;
+                }
+                
+                // Panggil fungsi Debounce untuk mengirim perintah update
+                if (isMarqueeActive) {
+                    // Gunakan debounced version untuk menghindari spamming WebSocket
+                    debouncedSendMarqueeCommand(true); 
+                }
+            });
+        }
+        
+        // Setup listeners untuk semua kontrol real-time (slider dan color picker)
+        setupInputListener(speedSlider);
+        setupInputListener(topOffsetSlider);
+        setupInputListener(heightSlider);
+        setupInputListener(fontSizeSlider);
+        setupInputListener(bgColorInput); 
+        setupInputListener(textColorInput); 
+
+
+        // Fungsi untuk menambahkan input item marquee
+        function addMarqueeItem(initialValue = '') {
+            itemCounter++;
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex items-center space-x-2';
+            wrapper.id = `item-wrapper-${itemCounter}`;
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.id = `marquee-item-${itemCounter}`;
+            input.value = initialValue;
+            input.placeholder = `Pesan ke-${itemCounter}`;
+            input.className = 'flex-grow p-2 border rounded-md focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 text-sm marquee-input';
+            
+            // Debouncing untuk input teks juga, agar tidak mengirim terlalu banyak saat mengetik
+            input.oninput = debouncedSendMarqueeCommand.bind(null, true); 
+
+            const removeButton = document.createElement('button');
+            removeButton.textContent = 'Hapus';
+            removeButton.className = 'bg-red-700 hover:bg-red-600 text-white text-xs py-2 px-3 rounded-md transition duration-150';
+            removeButton.onclick = () => {
+                wrapper.remove();
+                // Jika marquee aktif, kirim update agar item yang dihapus hilang
+                if (isMarqueeActive) {
+                    // Panggil debounced command untuk update
+                    debouncedSendMarqueeCommand(true);
+                }
+            };
+            
+            wrapper.appendChild(input);
+            wrapper.appendChild(removeButton);
+            marqueeInputContainer.appendChild(wrapper);
+            setMarqueeControlsDisabled(false); 
+        }
+
+        // Tambahkan 2 input awal saat dimuat
+        addMarqueeItem('JAVASATU KULINER MENYAJIKAN RAGAM KULINER YANG ADA DI MALANG RAYA');
+        addMarqueeItem('INFORMASI PELIPUTAN, SILAKAN SAMPAIKAN DI KOLOM KOMENTAR');
+
+        function updateStatus(message, colorClass) {
+            statusDiv.textContent = `Status: ${message}`;
+            // Sesuaikan warna status agar cocok dengan dark mode
+            if (colorClass.includes('green')) {
+                statusDiv.className = `mb-4 p-2 rounded text-xs font-medium transition-colors duration-300 bg-green-700 text-green-300`;
+            } else if (colorClass.includes('yellow')) {
+                 statusDiv.className = `mb-4 p-2 rounded text-xs font-medium transition-colors duration-300 bg-yellow-700 text-yellow-300`;
+            } else if (colorClass.includes('red')) {
+                 statusDiv.className = `mb-4 p-2 rounded text-xs font-medium transition-colors duration-300 bg-red-700 text-red-300`;
+            }
+        }
+
+        function appendLog(message, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<span>[${time}]</span> ${message}`;
+            logEntry.className = type === 'error' ? 'text-red-400' : 'text-gray-400';
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function setMarqueeControlsDisabled(disabled) {
+            sendMarqueeButton.disabled = disabled;
+            hideMarqueeButton.disabled = disabled;
+            addMarqueeItemButton.disabled = disabled; 
+            speedSlider.disabled = disabled; 
+            topOffsetSlider.disabled = disabled; 
+            heightSlider.disabled = disabled;   
+            fontSizeSlider.disabled = disabled; 
+            bgColorInput.disabled = disabled; 
+            textColorInput.disabled = disabled; 
+
+            document.querySelectorAll('#marqueeInputContainer button').forEach(btn => btn.disabled = disabled);
+            document.querySelectorAll('#marqueeInputContainer input[type="text"]').forEach(input => input.disabled = disabled);
+        }
+
+        function connectWebSocket() {
+            try {
+                ws = new WebSocket(wsUrl);
+                updateStatus("Menghubungkan...", "bg-yellow-100 text-yellow-700");
+                setMarqueeControlsDisabled(true);
+
+                ws.onopen = () => {
+                    updateStatus("Terkoneksi!", "bg-green-100 text-green-700");
+                    setMarqueeControlsDisabled(false);
+                    appendLog("Terkoneksi ke server WebSocket.", 'success');
+                };
+
+                ws.onclose = () => {
+                    updateStatus("Terputus. Mencoba menghubungkan kembali...", "bg-red-100 text-red-700");
+                    setMarqueeControlsDisabled(true);
+                    isMarqueeActive = false; 
+                    appendLog("Koneksi terputus. Mencoba lagi dalam 3 detik...", 'error');
+                    setTimeout(connectWebSocket, 3000);
+                };
+
+                ws.onerror = (error) => {
+                    if (ws.readyState === WebSocket.CONNECTING) {
+                        appendLog(`Gagal terhubung. Pastikan server berjalan.`, 'error');
+                    } else {
+                        appendLog(`Kesalahan WebSocket: ${error}`, 'error');
+                    }
+                    if (ws.readyState !== WebSocket.CLOSED) {
+                        ws.close();
+                    }
+                };
+
+            } catch (e) {
+                appendLog(`Gagal membuat koneksi WebSocket: ${e}`, 'error');
+            }
+        }
+        
+        // FUNGSI KHUSUS: Mengirim perintah Marquee (dapat dipanggil langsung atau debounced)
+        function sendMarqueeCommand(isRealtimeUpdate = false) {
+            const inputs = marqueeInputContainer.querySelectorAll('input[type="text"]');
+            const items = [];
+            inputs.forEach(input => {
+                const text = input.value.trim();
+                if (text) {
+                    items.push(text);
+                }
+            });
+
+            if (items.length === 0) {
+                if (!isRealtimeUpdate) {
+                    appendLog("Daftar pesan running text tidak boleh kosong.", 'error');
+                }
+                return;
+            }
+            
+            // Dapatkan nilai kontrol
+            const sliderValue = parseInt(speedSlider.value, 10);
+            const speedPx = convertSliderToPx(sliderValue);
+            const topOffsetPercent = parseInt(topOffsetSlider.value, 10);
+            const heightPx = parseInt(heightSlider.value, 10);
+            const fontSizeEm = parseFloat(fontSizeSlider.value); 
+            const bgColor = bgColorInput.value; 
+            const textColor = textColorInput.value; 
+            
+            // 2. Buat objek perintah JSON
+            const commandObject = {
+                type: "MARQUEE_UPDATE",
+                items: items, 
+                show: true,
+                speed: speedPx, 
+                top: topOffsetPercent, 
+                height: heightPx,
+                fontSize: fontSizeEm, 
+                bgColor: bgColor, 
+                textColor: textColor 
+            };
+            
+            // 3. Kirim sebagai JSON stringified
+            const command = JSON.stringify(commandObject);
+            sendData(command);
+            
+            isMarqueeActive = true; 
+            
+            if (!isRealtimeUpdate) {
+                appendLog(`Mengirim Running Text (Tampilkan). Ukuran Font: ${fontSizeEm}em`);
+            } else {
+                appendLog(`Mengirim Pembaruan Real-time (Debounced).`);
+            }
+        }
+        
+        // FUNGSI Marquee (Sembunyikan)
+        function hideMarqueeCommand() {
+             const command = JSON.stringify({
+                type: "MARQUEE_UPDATE",
+                show: false
+            });
+            sendData(command);
+            
+            isMarqueeActive = false; 
+            appendLog(`Mengirim Perintah Running Text (Sembunyikan)`);
+        }
+
+
+        function sendData(data) {
+             if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(data);
+            } else {
+                appendLog("Gagal mengirim: Koneksi tidak terbuka.", 'error');
+            }
+        }
+
+        // Mulai koneksi saat halaman dimuat
+        window.onload = () => {
+             // Pastikan nilai awal slider ditampilkan
+             topOffsetValueSpan.textContent = topOffsetSlider.value;
+             heightValueSpan.textContent = heightSlider.value;
+             fontSizeValueSpan.textContent = parseFloat(fontSizeSlider.value).toFixed(1); 
+             connectWebSocket();
+        }
+    </script>
+</body>
+</html>

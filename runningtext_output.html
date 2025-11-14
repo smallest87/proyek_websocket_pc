@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Output Running Text Murni</title>
+    <!-- Memuat Tailwind CSS untuk styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* PENTING: Latar belakang body diatur transparan penuh */
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: transparent; 
+            margin: 0; 
+            padding: 0; 
+            min-height: 100vh;
+            display: flex; 
+            align-items: flex-start; 
+            justify-content: center;
+            position: relative;
+        }
+
+        /* Styling Marquee Kustom */
+        #realTimeMarquee {
+            position: fixed; 
+            /* top: 0; <--- Diatur dinamis */
+            left: 0;
+            width: 100%;
+            /* height: 48px; <--- Diatur dinamis */
+            z-index: 999; 
+            opacity: 0;
+            visibility: hidden;
+            
+            /* Transisi untuk properti yang berubah */
+            transition: opacity 0.5s ease-in-out, 
+                        visibility 0.5s ease-in-out, 
+                        top 0.3s ease-out, 
+                        height 0.3s ease-out,
+                        background-color 0.3s ease; 
+            
+            /* Font Size default (akan di-override) */
+            font-size: 1.25rem; /* default Tailwind text-xl, sekitar 1.25em */
+            
+            border: none;
+            background-color: rgba(251, 191, 36, 0.9); 
+            color: #1f2937; 
+            
+            overflow: hidden; 
+        }
+        #realTimeMarquee.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* Wrapper untuk efek pergeseran */
+        #marqueeContentWrapper {
+            display: flex;
+            align-items: center;
+            height: 100%;
+            width: fit-content; 
+            white-space: nowrap;
+        }
+
+        /* Keyframes akan didefinisikan secara dinamis oleh JS */
+        .scrolling {
+            animation-iteration-count: infinite;
+            animation-timing-function: linear;
+            animation-play-state: running; 
+        }
+        
+        /* Item Marquee: warna teks akan diatur via JS */
+        .marquee-item {
+            display: inline-block;
+            padding: 0 1rem;
+            font-weight: 800; /* Extra bold */
+            text-transform: uppercase; 
+        }
+        
+        .item-divider {
+            padding: 0 0.5rem;
+        }
+
+        /* Hapus semua elemen UI lainnya di tampilan murni */
+        #app {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ELEMEN MARQUEE BARU (Custom Div) -->
+    <div id="realTimeMarquee" class="text-xl">
+        <div id="marqueeContentWrapper" class="marquee-content-wrapper">
+            <!-- Rangkaian span item akan diisi oleh JavaScript -->
+        </div>
+    </div>
+    <!-- AKHIR ELEMEN MARQUEE -->
+
+    <script>
+        const port = 8080;
+        const ip = "192.168.0.100";
+        // IP PENTING: Menggunakan IP server lokal: 192.168.0.123
+        const wsUrl = `ws://${ip}:${port}`;
+        
+        const realTimeMarqueeDiv = document.getElementById('realTimeMarquee'); 
+        const marqueeContentWrapper = document.getElementById('marqueeContentWrapper'); 
+        const head = document.head; // Untuk menambahkan dynamic style
+
+        let ws;
+        let currentScrollSpeed = 50; 
+        let currentMarqueeContent = ""; 
+        let currentTextColor = "#1f2937"; // Simpan warna teks saat ini
+        let currentFontSize = 1.8; // Simpan ukuran font saat ini (default)
+
+        
+        function buildMarqueeContent(items) {
+            const filteredItems = items.filter(item => item.trim() !== '');
+            if (filteredItems.length === 0) return '';
+            
+            // Atur warna pembatas agar kontras/sesuai dengan warna teks saat ini
+            const divider = `<span class="item-divider" style="color: ${currentTextColor};"> • </span>`;
+            
+            const content = filteredItems.map((item) => {
+                // Terapkan warna teks ke item marquee
+                let itemHtml = `<span class="marquee-item" style="color: ${currentTextColor};">${item}</span>`;
+                return itemHtml;
+            }).join(divider);
+            
+            currentMarqueeContent = content;
+
+            // Gandakan konten untuk scrolling tanpa batas (seamless scroll)
+            return `<div id="originalContent">${content}</div><div id="duplicateContent">${divider}${content}</div>`;
+        }
+        
+        // FUNGSI BARU: Mengaplikasikan warna latar belakang dan warna teks
+        function applyColors(bgColor, textColor) {
+            if (bgColor) {
+                // Terapkan warna latar belakang langsung ke div Marquee
+                realTimeMarqueeDiv.style.backgroundColor = bgColor;
+            }
+            
+            if (textColor && textColor !== currentTextColor) {
+                currentTextColor = textColor; // Perbarui warna teks saat ini
+                
+                // Perbarui warna teks dan pembatas pada konten yang sudah ada (jika ada)
+                document.querySelectorAll('.marquee-item').forEach(item => {
+                    item.style.color = textColor;
+                });
+                document.querySelectorAll('.item-divider').forEach(divider => {
+                    divider.style.color = textColor;
+                });
+            }
+        }
+        
+        // FUNGSI BARU: Menerapkan ukuran font
+        function applyFontSize(fontSize) {
+            if (typeof fontSize === 'number' && fontSize !== currentFontSize) {
+                currentFontSize = fontSize;
+                realTimeMarqueeDiv.style.fontSize = `${fontSize}em`;
+                return true; // Beri tahu bahwa ukuran font berubah
+            }
+            return false;
+        }
+
+        // FUNGSI SAMA: Menghitung durasi animasi berdasarkan lebar konten dan kecepatan baru
+        function updateMarqueeAnimation() {
+            // Hapus style animasi lama (jika ada)
+            marqueeContentWrapper.style.animation = 'none';
+            marqueeContentWrapper.style.transform = 'translateX(0)';
+            
+            marqueeContentWrapper.offsetHeight; // Paksa reflow
+
+            const originalContent = document.getElementById('originalContent');
+            if (!originalContent) { return; }
+
+            const contentWidth = originalContent.offsetWidth; 
+            const scrollSpeed = currentScrollSpeed; 
+            
+            // Hitung durasi (sekon) = Jarak (px) / Kecepatan (px/s)
+            const duration = contentWidth / scrollSpeed; 
+            
+            const animationName = `scrollLoop-${Date.now()}`;
+            
+            // Hapus style lama dan buat style baru
+            let styleElement = document.getElementById('marqueeAnimationStyle');
+            if (!styleElement) {
+                styleElement = document.createElement('style');
+                styleElement.id = 'marqueeAnimationStyle';
+                document.head.appendChild(styleElement);
+            }
+            
+            styleElement.textContent = `
+                @keyframes ${animationName} {
+                    from { transform: translateX(0); }
+                    to { transform: translateX(-${contentWidth}px); } 
+                }
+            `;
+            
+            // Terapkan animasi baru ke wrapper
+            marqueeContentWrapper.style.animation = `${animationName} ${duration}s linear infinite`;
+            marqueeContentWrapper.style.animationPlayState = 'running'; 
+            
+            console.log(`Animasi loop dimulai. Kecepatan: ${scrollSpeed} px/s, Durasi: ${duration}s.`);
+        }
+
+
+        function updateStatus(message, colorClass) {
+            console.log(`[Status] ${message}`);
+        }
+
+        function appendMessage(data) {
+            console.log(`[Pesan Diterima] ${data}`);
+        }
+        
+        function handleToggleCommand() {
+             console.log("Perintah TOGGLE_STATUS_TEXT diabaikan (Tampilan Murni).");
+        }
+        
+        // FUNGSI UTAMA: Menangani Perintah Marquee
+        function handleMarqueeCommand(data) {
+            let needsContentRebuild = false;
+
+            // --- 1. TERAPKAN WARNA, POSISI, DAN FONT SIZE SECARA REAL-TIME ---
+            if (typeof data.top === 'number') {
+                realTimeMarqueeDiv.style.top = `${data.top}%`;
+                if (data.top === 100) {
+                     realTimeMarqueeDiv.style.transform = `translateY(-100%)`;
+                } else {
+                     realTimeMarqueeDiv.style.transform = `translateY(0)`;
+                }
+            }
+            if (typeof data.height === 'number') {
+                realTimeMarqueeDiv.style.height = `${data.height}px`;
+            }
+
+            // FONT SIZE MEMERLUKAN PEMBANGUNAN ULANG KONTEN KARENA MEMENGARUHI LEBAR!
+            if (applyFontSize(data.fontSize)) {
+                needsContentRebuild = true;
+            }
+
+            // Terapkan warna baru
+            applyColors(data.bgColor, data.textColor);
+            // ------------------------------------------------
+
+            // Simpan kecepatan baru
+            if (typeof data.speed === 'number' && data.speed > 0) {
+                currentScrollSpeed = data.speed;
+            }
+            
+            if (data.show && data.items && Array.isArray(data.items) && data.items.length > 0) {
+                
+                // Cek apakah konten pesan atau warna teks berubah
+                const newContent = buildMarqueeContent(data.items);
+                if (!realTimeMarqueeDiv.classList.contains('show') || marqueeContentWrapper.innerHTML === '' || currentMarqueeContent !== newContent || needsContentRebuild) {
+                     // Panggil buildMarqueeContent lagi (yang sudah diupdate di applyColors)
+                     marqueeContentWrapper.innerHTML = newContent; 
+                }
+                
+                realTimeMarqueeDiv.classList.add('show');
+                
+                // Perbarui animasi
+                setTimeout(updateMarqueeAnimation, 50); 
+                
+                console.log(`Running Text ditampilkan/diperbarui. Kecepatan: ${currentScrollSpeed} px/s. Font Size: ${currentFontSize}em.`);
+            } else {
+                // Sembunyikan Marquee
+                realTimeMarqueeDiv.classList.remove('show');
+                
+                // Hapus konten dan properti animasi setelah transisi fade-out selesai
+                setTimeout(() => {
+                    if (!realTimeMarqueeDiv.classList.contains('show')) {
+                        marqueeContentWrapper.innerHTML = '';
+                        marqueeContentWrapper.style.animation = 'none'; 
+                        realTimeMarqueeDiv.style.transform = `translateY(0)`; 
+                        marqueeContentWrapper.style.transform = 'translateX(0)'; 
+                        currentMarqueeContent = ""; 
+                    }
+                }, 500); 
+            }
+        }
+
+
+        function connectWebSocket() {
+            try {
+                ws = new WebSocket(wsUrl);
+                updateStatus("Menghubungkan...", "bg-yellow-100 text-yellow-700");
+
+                ws.onopen = () => {
+                    updateStatus("Terkoneksi, siap menerima data!", "bg-green-100 text-green-700");
+                };
+
+                ws.onmessage = (event) => {
+                    const data = event.data;
+                    
+                    if (data === "TOGGLE_STATUS_TEXT") {
+                        handleToggleCommand();
+                    } else {
+                        try {
+                            const json = JSON.parse(data);
+                            if (json.type === "MARQUEE_UPDATE") {
+                                handleMarqueeCommand(json);
+                            } else {
+                                appendMessage(data);
+                            }
+                        } catch (e) {
+                            appendMessage(data);
+                        }
+                    }
+                };
+
+                ws.onclose = (event) => { 
+                    updateStatus("Terputus. Mencuba menghubungkan kembali...", "bg-red-100 text-red-700");
+                    console.error(`Koneksi terputus. Kode: ${event.code}. Mencoba lagi dalam 3 detik...`); 
+                    setTimeout(connectWebSocket, 3000); 
+                };
+
+                ws.onerror = (error) => {
+                    console.error(`Kesalahan WebSocket: ${error}`);
+                    ws.close();
+                };
+
+            } catch (e) {
+                console.error(`Gagal membuat koneksi WebSocket: ${e}`);
+            }
+        }
+
+        // Mulai koneksi saat halaman dimuat
+        window.onload = connectWebSocket;
+    </script>
+</body>
+</html>

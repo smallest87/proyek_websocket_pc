@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Klien Output Real-time</title>
+    <!-- Memuat Tailwind CSS untuk styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #e2e8f0; }
+        .card { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+        @keyframes pulse-fade {
+            0% { background-color: #d1fae5; }
+            50% { background-color: #f9f9f9; }
+            100% { background-color: #f9f9f9; }
+        }
+    </style>
+</head>
+<body class="p-8 flex items-center justify-center min-h-screen">
+
+    <div id="app" class="card bg-white p-6 md:p-10 rounded-xl w-full max-w-xl transition-all duration-300">
+        <h1 class="text-3xl font-bold text-gray-800 mb-4 border-b-2 pb-2 text-green-600">Output Client (Penerima)</h1>
+        <p class="text-sm text-red-500 mb-4">Pastikan server Python (ws_server.py) sudah berjalan!</p>
+
+        <div id="status" class="mb-4 p-3 rounded-lg text-sm font-medium transition-colors duration-300 bg-red-100 text-red-700">
+            Status: Menghubungkan...
+        </div>
+        
+        <!-- Kontrol Teks Status Real-time -->
+        <div class="mb-5 text-center">
+            <span id="realTimeStatus" class="inline-block px-4 py-2 bg-green-500 text-white font-bold rounded-full shadow-lg transition-opacity duration-300 opacity-0">
+                STATUS AKTIF (Dikendalikan dari Kontrol)
+            </span>
+        </div>
+
+        <h2 class="text-xl font-semibold text-gray-700 mb-3">Data Teks Diterima:</h2>
+        <div id="outputMessages" class="h-64 overflow-y-auto bg-gray-50 p-4 rounded-lg border-2 border-green-300 space-y-3">
+            <p class="text-gray-500 italic">Menunggu pesan dari Control Room...</p>
+        </div>
+
+    </div>
+
+    <script>
+        const port = 8080;      
+        // IP PENTING: Menggunakan IP server lokal: 192.168.0.123
+        const wsUrl = `ws://192.168.0.123:${port}`;
+        
+        const statusDiv = document.getElementById('status');
+        const outputMessagesDiv = document.getElementById('outputMessages');
+        const realTimeStatusSpan = document.getElementById('realTimeStatus');
+
+        let ws;
+
+        function updateStatus(message, colorClass) {
+            statusDiv.textContent = `Status: ${message}`;
+            statusDiv.className = `mb-4 p-3 rounded-lg text-sm font-medium transition-colors duration-300 ${colorClass}`;
+        }
+
+        function appendMessage(data) {
+            // Hapus pesan "Menunggu..." jika ada
+            const placeholder = outputMessagesDiv.querySelector('p.italic');
+            if (placeholder) {
+                placeholder.remove();
+            }
+
+            const time = new Date().toLocaleTimeString();
+            const messageElement = document.createElement('div');
+            // Gunakan animasi kustom untuk efek "pesan masuk"
+            messageElement.className = 'p-3 bg-white border border-gray-100 rounded-lg shadow-sm text-gray-800 break-words';
+            messageElement.style.animation = 'pulse-fade 0.8s ease-out';
+            
+            messageElement.innerHTML = `
+                <span class="font-bold text-green-600 text-base">Pesan Baru:</span>
+                <span class="font-mono text-sm block mt-1">${data}</span>
+                <span class="text-xs text-gray-400 float-right">${time}</span>
+            `;
+            outputMessagesDiv.appendChild(messageElement);
+            
+            // Gulir ke bawah
+            outputMessagesDiv.scrollTop = outputMessagesDiv.scrollHeight;
+        }
+        
+        function handleToggleCommand() {
+            // Fungsi untuk mengaktifkan/menonaktifkan teks status
+            const isVisible = realTimeStatusSpan.classList.toggle('opacity-0');
+            console.log(`Status text visibility toggled to: ${!isVisible}`);
+        }
+
+        function connectWebSocket() {
+            try {
+                ws = new WebSocket(wsUrl);
+                updateStatus("Menghubungkan...", "bg-yellow-100 text-yellow-700");
+
+                ws.onopen = () => {
+                    updateStatus("Terkoneksi, siap menerima data!", "bg-green-100 text-green-700");
+                };
+
+                ws.onmessage = (event) => {
+                    const data = event.data;
+                    
+                    if (data === "TOGGLE_STATUS_TEXT") {
+                        handleToggleCommand();
+                    } else {
+                        // Pesan teks biasa
+                        appendMessage(data);
+                    }
+                };
+
+                ws.onclose = (event) => { 
+                    updateStatus("Terputus. Mencuba menghubungkan kembali...", "bg-red-100 text-red-700");
+                    // Log maklumat diagnostik
+                    console.error(`Koneksi terputus. Kode: ${event.code}. Sebab: ${event.reason || 'Tidak ada sebab spesifik'}. Mencoba lagi dalam 3 detik...`); 
+                    setTimeout(connectWebSocket, 3000); // Coba hubungkan kembali
+                };
+
+                ws.onerror = (error) => {
+                    console.error(`Kesalahan WebSocket: ${error}`);
+                    ws.close();
+                };
+
+            } catch (e) {
+                console.error(`Gagal membuat koneksi WebSocket: ${e}`);
+            }
+        }
+
+        // Mulai koneksi saat halaman dimuat
+        window.onload = connectWebSocket;
+    </script>
+</body>
+</html>
