@@ -3,24 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kartu Konten Sederhana (Display)</title>
+    <title>Kartu Konten Dinamis (Display)</title>
     <!-- Memuat Tailwind CSS untuk styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Mengatur font dasar untuk tampilan yang lebih modern */
         body {
             font-family: 'Inter', sans-serif;
-            /* Latar belakang diatur menjadi transparan */
             background-color: transparent; 
             min-height: 100vh;
         }
 
-        /* 1. Kondisi Tersembunyi (Posisi Default CSS) */
-        #animated-card {
-            /* Pindah sepenuhnya ke kiri (100% dari lebar kartu + 50px buffer) agar tidak terlihat */
+        /* Container untuk semua kartu */
+        #cards-container {
+             /* Posisi relatif untuk menampung kartu fixed/absolute */
+            position: relative;
+        }
+
+        /* Style dasar untuk setiap kartu */
+        .animated-card-item {
+            /* Posisi fixed di sudut kiri atas */
+            position: fixed;
+            top: 24px; /* top-6 */
+            left: 24px; /* left-6 */
+            max-width: 320px; /* max-w-sm */
+            z-index: 10; /* Untuk memastikan kartu tampil di atas yang lain */
+            
+            /* 1. Kondisi Tersembunyi (Posisi Default CSS) */
             transform: translateX(calc(-100% - 50px)); 
             /* Kecepatan transisi 333ms */
             transition: transform 333ms ease-out;
+            
+            /* Tambahkan sedikit offset y agar kartu bertumpuk sedikit jika berada di posisi yang sama */
+            /* transform: translateX(calc(-100% - 50px)) translateY(var(--card-y-offset, 0px)); */
         }
 
         /* 2. Kondisi Terlihat (Kelas yang Di-toggle oleh JavaScript) */
@@ -32,60 +47,18 @@
 </head>
 <body>
 
-    <!--
-      Wadah utama untuk kartu konten.
-      Kartu dimulai tersembunyi secara default.
-    -->
-    <div 
-        id="animated-card"
-        class="fixed top-6 left-6 max-w-sm bg-white shadow-xl rounded-xl overflow-hidden 
-               hover:shadow-2xl cursor-default"
-        role="alert" 
-        aria-hidden="true"
-    >
-        
-        <!-- 1. Thumbnail Ukuran Sedang -->
-        <div class="thumbnail-container">
-            <img 
-                id="thumbnail-img"
-                src="https://placehold.co/320x180/4f46e5/ffffff?text=Default+Gambar" 
-                alt="Gambar Thumbnail" 
-                class="w-full h-auto object-cover rounded-t-xl"
-                onerror="this.onerror=null; this.src='https://placehold.co/320x180/1f2937/ffffff?text=Gagal+Memuat';"
-            >
-        </div>
-
-        <!-- Bagian Teks (Judul dan Caption) -->
-        <div class="p-4">
-            
-            <!-- 2. Label Judul -->
-            <h2 id="judul-teks" class="text-xl font-extrabold text-gray-900 mb-1 leading-tight">
-                Judul Konten Default
-            </h2>
-
-            <!-- 3. Teks Caption -->
-            <!-- Tambahkan ID ke elemen caption untuk kontrol visibilitas -->
-            <p id="caption-teks" class="text-sm text-gray-600">
-                Ini adalah teks deskripsi atau *caption* default. Konten akan diupdate dari panel kontrol.
-            </p>
-            
-        </div>
-
-        <!-- 4. Footer Kartu (Sumber) - Latar belakang hitam dan teks putih -->
-        <div id="sumber-teks-container" class="bg-black p-2 text-white text-xs font-medium text-right">
-            Sumber: default-sumber.com
-        </div>
-        
+    <!-- Container Utama untuk Menampung Semua Kartu Berita -->
+    <div id="cards-container">
+        <!-- Kartu-kartu akan dimasukkan di sini secara dinamis oleh JavaScript -->
     </div>
 
     <!-- Kode JavaScript untuk Memicu Animasi dan Menerima Data via WebSocket -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const card = document.getElementById('animated-card');
-            const judulElement = document.getElementById('judul-teks');
-            const captionElement = document.getElementById('caption-teks');
-            const sumberContainer = document.getElementById('sumber-teks-container');
-            const thumbnailImg = document.getElementById('thumbnail-img');
+            const cardsContainer = document.getElementById('cards-container');
+            
+            // Map untuk menyimpan referensi elemen DOM kartu: { itemId: HTMLElement }
+            let cardElementMap = {}; 
 
             // PENGATURAN WEBSOCKET
             const port = 8080;
@@ -94,30 +67,139 @@
 
             let ws = null;
 
-            // Fungsi untuk memperbarui konten kartu
-            function updateCardContent(data) {
+            // --- KARTU UTILITIES ---
+            
+            // Fungsi untuk membuat elemen kartu baru
+            function createCardElement(item) {
+                const card = document.createElement('div');
+                card.id = `card-item-${item.id}`;
+                card.className = 'animated-card-item bg-white shadow-xl rounded-xl overflow-hidden hover:shadow-2xl cursor-default';
+                card.setAttribute('role', 'alert');
+                card.setAttribute('aria-hidden', !item.isVisible);
+
+                // --- HTML Structure for a single card ---
+                card.innerHTML = `
+                    <!-- 1. Thumbnail Ukuran Sedang -->
+                    <div class="thumbnail-container">
+                        <img 
+                            id="thumbnail-img-${item.id}"
+                            src="${item.thumbnail || 'https://placehold.co/320x180/4f46e5/ffffff?text=Default+Gambar'}" 
+                            alt="Gambar Thumbnail" 
+                            class="w-full h-auto object-cover rounded-t-xl"
+                            onerror="this.onerror=null; this.src='https://placehold.co/320x180/1f2937/ffffff?text=Gagal+Memuat';"
+                        >
+                    </div>
+
+                    <!-- Bagian Teks (Judul dan Caption) -->
+                    <div class="p-4">
+                        
+                        <!-- 2. Label Judul -->
+                        <h2 id="judul-teks-${item.id}" class="text-xl font-extrabold text-gray-900 mb-1 leading-tight">
+                            ${item.judul}
+                        </h2>
+
+                        <!-- 3. Teks Caption -->
+                        <p id="caption-teks-${item.id}" class="text-sm text-gray-600 ${item.showCaption ? '' : 'hidden'}">
+                            ${item.caption}
+                        </p>
+                        
+                    </div>
+
+                    <!-- 4. Footer Kartu (Sumber) -->
+                    <div id="sumber-teks-container-${item.id}" class="bg-black p-2 text-white text-xs font-medium text-right">
+                        Sumber: ${item.sumber}
+                    </div>
+                `;
+                
+                // Set visibilitas awal (penting untuk animasi)
+                if (item.isVisible) {
+                    card.classList.add('is-visible');
+                } else {
+                    card.classList.remove('is-visible');
+                }
+
+                cardsContainer.appendChild(card);
+                return card;
+            }
+
+            // Fungsi untuk memperbarui konten kartu yang sudah ada
+            function updateCardContent(itemId, data) {
+                const card = cardElementMap[itemId];
+                if (!card) return;
+
+                const judulElement = document.getElementById(`judul-teks-${itemId}`);
+                const captionElement = document.getElementById(`caption-teks-${itemId}`);
+                const sumberContainer = document.getElementById(`sumber-teks-container-${itemId}`);
+                const thumbnailImg = document.getElementById(`thumbnail-img-${itemId}`);
+                
                 if (data.judul) judulElement.textContent = data.judul;
                 if (data.caption !== undefined) captionElement.textContent = data.caption;
                 
-                // NEW: Kontrol visibilitas caption
+                // Kontrol visibilitas caption
                 if (data.showCaption !== undefined) {
                     captionElement.classList.toggle('hidden', !data.showCaption);
                 }
 
-                if (data.sumber) {
-                    sumberContainer.textContent = `Sumber: ${data.sumber}`;
-                } else if (data.sumber === "") {
-                    sumberContainer.textContent = "";
+                if (data.sumber !== undefined) {
+                     sumberContainer.textContent = data.sumber ? `Sumber: ${data.sumber}` : "";
                 }
                 
+                // Update Thumbnail Source
                 if (data.thumbnail) {
+                    // Set src baru untuk thumbnail
                     thumbnailImg.src = data.thumbnail || "https://placehold.co/320x180/4f46e5/ffffff?text=Ganti+Gambar";
                 }
+                
+                // Update visibilitas jika status dikirim bersama data
+                if (data.isVisible !== undefined) {
+                    toggleCardVisibility(itemId, data.isVisible);
+                }
+            }
+            
+            // Fungsi untuk mengelola Fly In/Out
+            function toggleCardVisibility(itemId, forceVisible = undefined) {
+                const card = cardElementMap[itemId];
+                if (!card) return;
+
+                const shouldBeVisible = forceVisible !== undefined ? forceVisible : !card.classList.contains('is-visible');
+                
+                card.classList.toggle('is-visible', shouldBeVisible);
+                card.setAttribute('aria-hidden', !shouldBeVisible);
             }
 
-            // Fungsi untuk mengelola koneksi WebSocket
+            // --- SINKRONISASI DAFTAR KARTU UTAMA ---
+            function syncAllCards(allItemData) {
+                const receivedIds = new Set(allItemData.map(item => item.id));
+                const currentIds = new Set(Object.keys(cardElementMap));
+
+                // 1. Tambah atau Update Item
+                allItemData.forEach(item => {
+                    if (cardElementMap[item.id]) {
+                        // Update Item yang sudah ada
+                        updateCardContent(item.id, item);
+                    } else {
+                        // Tambah Item baru
+                        const newCard = createCardElement(item);
+                        cardElementMap[item.id] = newCard;
+                        console.log(`Card baru dibuat: ${item.id}`);
+                    }
+                });
+
+                // 2. Hapus Item yang tidak ada lagi
+                currentIds.forEach(id => {
+                    if (!receivedIds.has(id)) {
+                        const cardToRemove = cardElementMap[id];
+                        if (cardToRemove) {
+                            cardToRemove.remove();
+                            delete cardElementMap[id];
+                            console.log(`Card dihapus: ${id}`);
+                        }
+                    }
+                });
+            }
+
+            // --- WEBSOCKET CONNECTION ---
             function connectWebSocket() {
-                
                 try {
                     ws = new WebSocket(wsUrl);
 
@@ -130,13 +212,11 @@
                             const message = JSON.parse(event.data);
                             
                             if (message.command === 'TOGGLE_VISIBILITY') {
-                                // Memicu animasi fly-in/fly-out
-                                card.classList.toggle('is-visible');
-                                const isVisible = card.classList.contains('is-visible');
-                                card.setAttribute('aria-hidden', !isVisible);
-                            } else if (message.command === 'UPDATE_CONTENT' && message.payload) {
-                                // Memperbarui semua konten kartu
-                                updateCardContent(message.payload);
+                                // Hanya lakukan toggle untuk itemId spesifik
+                                toggleCardVisibility(message.itemId);
+                            } else if (message.command === 'UPDATE_CONTENT_ALL' && message.payload) {
+                                // Sinkronisasi seluruh daftar kartu
+                                syncAllCards(message.payload);
                             }
                         } catch (e) {
                             console.error('Error parsing WS message:', e);
@@ -159,9 +239,6 @@
 
             // Inisialisasi koneksi
             connectWebSocket();
-
-            // Set default visibility to hidden (initial CSS state)
-            card.classList.remove('is-visible'); 
         });
     </script>
 

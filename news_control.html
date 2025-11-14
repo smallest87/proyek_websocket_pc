@@ -3,119 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel Kontrol Berita</title>
+    <title>Panel Kontrol Berita Dinamis</title>
     <!-- Memuat Tailwind CSS untuk styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f7f9fb;
+            background-color: #f3f4f6; /* Light gray background */
             padding: 24px;
         }
-        .input-group label {
-            font-weight: 600;
-            color: #1f2937;
-            margin-bottom: 4px;
-            display: block;
+        /* Custom styling for a cleaner look */
+        .item-card {
+            transition: all 0.2s ease-in-out;
         }
-        .animate-spin {
-             animation: spin 1s linear infinite;
+        .item-card:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
-        @keyframes spin {
-             from { transform: rotate(0deg); }
-             to { transform: rotate(360deg); }
-        }
-        /* Mengatur input teks menjadi lebih jelas ketika readonly */
-        input[readonly] {
-            background-color: #e5e7eb; /* gray-200 */
-            cursor: default;
-        }
+        .animate-spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        
+        /* Checkbox styling (for clean custom look) */
+        input[type="checkbox"]:checked { background-color: #4f46e5; border-color: #4f46e5; }
+        
+        /* Input read-only for path */
+        input[readonly] { background-color: #f9fafb; cursor: default; }
     </style>
 </head>
 <body>
 
-    <div class="max-w-md mx-auto bg-white p-6 rounded-xl shadow-lg">
-        <h1 class="text-2xl font-bold mb-6 text-gray-800">Panel Kontrol Kartu Berita</h1>
-        
-        <div class="space-y-4" id="control-form">
-            
-            <!-- Input Jalur Relatif Gambar (Menggunakan Dialog File) -->
-            <div class="input-group">
-                <label for="input-thumbnail-path">Jalur Relatif Gambar (Thumbnail)</label>
-                
-                <div class="flex space-x-2">
-                    <!-- Input Teks (Readonly) untuk menampilkan nama file yang dipilih -->
-                    <input type="text" id="input-thumbnail-path" placeholder="Nama berkas..."
-                           class="flex-grow p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                           readonly> 
-                    
-                    <!-- Tombol untuk memicu dialog file -->
-                    <button id="browse-file-btn" type="button" 
-                            class="bg-indigo-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-600 transition duration-150 shadow-md">
-                        Pilih Berkas
-                    </button>
-                </div>
-
-                <!-- Input File tersembunyi yang akan membuka dialog Windows -->
-                <input type="file" id="hidden-file-input" class="hidden" accept="image/*"> 
-
-                <p class="text-xs mt-1 text-gray-500">
-                    Nama berkas yang dipilih (jalur relatif) akan ditampilkan di atas.
-                </p>
-            </div>
-            
-            <!-- Input Text Judul -->
-            <div class="input-group">
-                <label for="input-judul">Judul Konten</label>
-                <input type="text" id="input-judul" placeholder="Masukkan judul berita"
-                       class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            </div>
-
-            <!-- Input Text Caption -->
-            <div class="input-group">
-                <div class="flex items-center mb-1">
-                    <input type="checkbox" id="toggle-caption" class="form-checkbox h-4 w-4 text-indigo-600 transition duration-150 ease-in-out rounded border-gray-300" checked>
-                    <label for="toggle-caption" class="ml-2 text-sm font-semibold text-gray-700">Tampilkan Teks Caption</label>
-                </div>
-                <textarea id="input-caption" placeholder="Masukkan deskripsi singkat konten" rows="3"
-                          class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
-            </div>
-
-            <!-- Input Text Sumber -->
-            <div class="input-group">
-                <label for="input-sumber">Sumber Berita</label>
-                <input type="text" id="input-sumber" placeholder="cth: javasatu.com"
-                       class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            </div>
-
-            <!-- Tombol Update (mengirim data) -->
-            <button id="update-btn"
-                    class="w-full bg-indigo-600 text-white font-semibold py-2 rounded-lg hover:bg-indigo-700 transition duration-150 shadow-md">
-                Perbarui Konten Kartu
-            </button>
-            
-            <hr class="my-6 border-gray-200">
-
-            <!-- Tombol Fly In/Out (mengirim perintah) -->
-            <button id="toggle-btn"
-                    class="w-full bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600 transition duration-150 shadow-md">
-                Fly In / Fly Out Kartu (ENTER)
-            </button>
-            
-        </div>
+    <div class="max-w-xl mx-auto">
+        <h1 class="text-2xl font-bold mb-2 text-gray-800">Panel Kontrol Kartu Berita</h1>
+        <p class="text-sm text-gray-500 mb-6">Kelola dan kendalikan setiap item kartu secara independen. (Hanya 1 item aktif)</p>
         
         <!-- Status koneksi WebSocket -->
-        <div class="mt-4 p-3 bg-gray-100 text-gray-800 rounded-lg text-sm flex items-center border border-gray-300">
+        <div class="mb-6 p-3 bg-gray-100 text-gray-800 rounded-lg text-sm flex items-center border border-gray-300">
             <svg id="ws-status-icon" class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                 <!-- Icon will be updated by JS -->
             </svg>
             <span id="ws-status-text">Menghubungkan ke WebSocket...</span>
         </div>
         
-        <!-- Log Koneksi (BARU: Untuk Debugging) -->
+        <!-- Item List Container -->
+        <div id="items-container" class="space-y-4 mb-6">
+            <!-- Item cards will be rendered here -->
+        </div>
+
+        <div class="flex space-x-2 mb-8">
+            <button id="add-item-btn"
+                    class="flex-grow bg-indigo-600 text-white font-semibold py-3 rounded-lg hover:bg-indigo-700 transition duration-150 shadow-md disabled:opacity-50">
+                + Tambah Item Berita Baru
+            </button>
+            <button id="save-json-btn"
+                    class="bg-gray-700 text-white font-semibold py-3 px-4 rounded-lg hover:bg-gray-800 transition duration-150 shadow-md disabled:opacity-50">
+                Simpan (Unduh) JSON
+            </button>
+            <button id="send-all-update-btn"
+                    class="bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg hover:bg-gray-500 transition duration-150 shadow-md disabled:opacity-50">
+                Kirim Semua Data
+            </button>
+        </div>
+        
+        <!-- Log Koneksi -->
         <div class="mt-4">
             <div class="text-xs text-gray-600 mb-1">Log Koneksi</div>
-            <div id="log" class="h-16 overflow-y-auto bg-gray-50 p-2 rounded text-xs text-gray-600 border border-gray-300 space-y-1">
+            <div id="log" class="h-24 overflow-y-auto bg-gray-50 p-2 rounded text-xs text-gray-600 border border-gray-300 space-y-1">
                 <!-- Log akan muncul di sini -->
             </div>
         </div>
@@ -124,17 +75,10 @@
     <!-- Kode JavaScript untuk Mengirim Pesan Kontrol via WebSocket -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Elemen untuk fitur pemilihan file
-            const inputThumbnailPath = document.getElementById('input-thumbnail-path'); 
-            const browseFileBtn = document.getElementById('browse-file-btn');
-            const hiddenFileInput = document.getElementById('hidden-file-input');
-            
-            const inputJudul = document.getElementById('input-judul');
-            const inputCaption = document.getElementById('input-caption');
-            const toggleCaption = document.getElementById('toggle-caption'); // NEW
-            const inputSumber = document.getElementById('input-sumber');
-            const updateBtn = document.getElementById('update-btn');
-            const toggleBtn = document.getElementById('toggle-btn');
+            const itemsContainer = document.getElementById('items-container');
+            const addItemBtn = document.getElementById('add-item-btn');
+            const sendAllUpdateBtn = document.getElementById('send-all-update-btn');
+            const saveJsonBtn = document.getElementById('save-json-btn');
             const wsStatusText = document.getElementById('ws-status-text');
             const wsStatusIcon = document.getElementById('ws-status-icon');
             const logDiv = document.getElementById('log');
@@ -146,24 +90,23 @@
             
             let ws = null;
             let isConnected = false;
+            let newsItems = []; // STATE: Array untuk menyimpan semua item berita
+            const JSON_FILE_PATH = 'berita.json'; // Lokasi file untuk dimuat
 
-            // SVG Icons
+            // SVG Icons (connected, connecting, disconnected)
             const svgConnected = '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>';
             const svgConnecting = '<circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M10 2v2M18 10h-2M10 18v-2M2 10h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>';
             const svgDisconnected = '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>';
 
-            // --- DEBOUNCE FUNCTION ---
+            // --- UTILITIES ---
             function debounce(func, timeout = 300) {
                 let timer;
                 return (...args) => {
                     clearTimeout(timer);
-                    timer = setTimeout(() => {
-                        func.apply(this, args);
-                    }, timeout);
+                    timer = setTimeout(() => { func.apply(this, args); }, timeout);
                 };
             }
-            const debouncedSendUpdate = debounce(sendUpdate, 300);
-            // -------------------------
+            const debouncedSendAllUpdate = debounce(sendAllUpdate, 300);
 
             function updateStatusIcon(status) {
                 wsStatusIcon.classList.remove('text-green-500', 'text-yellow-500', 'text-red-500', 'animate-spin');
@@ -189,18 +132,79 @@
             }
 
             function setControlsDisabled(disabled) {
-                updateBtn.disabled = disabled;
-                toggleBtn.disabled = disabled;
-                inputThumbnailPath.disabled = disabled; 
-                browseFileBtn.disabled = disabled; 
-                inputJudul.disabled = disabled;
-                inputCaption.disabled = disabled;
-                toggleCaption.disabled = disabled; // NEW
-                inputSumber.disabled = disabled;
+                addItemBtn.disabled = disabled;
+                sendAllUpdateBtn.disabled = disabled;
+                saveJsonBtn.disabled = disabled; // Tambahkan tombol save
+                // Menonaktifkan semua kontrol item dinamis
+                document.querySelectorAll('#items-container input, #items-container textarea, #items-container button').forEach(el => {
+                    el.disabled = disabled;
+                });
             }
             
-            // FUNGSI UTAMA KONEKSI DENGAN LOGIKA RECONNECT
-            function connectWebSocket() {
+            // --- DATA PERSISTENCY: LOAD AND SAVE JSON ---
+            async function loadItemsFromJson() {
+                try {
+                    const response = await fetch(JSON_FILE_PATH);
+                    if (!response.ok) {
+                        if (response.status === 404) {
+                             appendLog(`File ${JSON_FILE_PATH} tidak ditemukan. Memulai dengan item default.`, 'info');
+                        } else {
+                            throw new Error(`Error ${response.status}: Gagal memuat file JSON.`);
+                        }
+                        return null;
+                    }
+                    const data = await response.json();
+                    
+                    // Memastikan data yang dimuat adalah array dengan struktur yang benar
+                    if (Array.isArray(data) && data.length > 0 && data[0].id) {
+                        newsItems = data.map(item => ({
+                            ...item,
+                            // Pastikan isVisible diatur ulang ke false saat dimuat,
+                            // agar kartu tidak langsung muncul saat app dibuka
+                            isVisible: false 
+                        }));
+                        appendLog(`Berhasil memuat ${newsItems.length} item dari ${JSON_FILE_PATH}.`, 'info');
+                        return true;
+                    }
+                    appendLog("File JSON kosong atau format tidak valid. Memulai dengan item default.", 'info');
+                    return null;
+
+                } catch (e) {
+                    appendLog(`Kesalahan saat memuat JSON: ${e.message}. Memulai dengan item default.`, 'error');
+                    return null;
+                }
+            }
+            
+            function downloadJsonFile() {
+                const data = JSON.stringify(newsItems, null, 4); // Format JSON dengan indentasi
+                const blob = new Blob([data], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                // Membuat elemen link untuk memicu unduhan
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = JSON_FILE_PATH;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                appendLog(`Data JSON telah diunduh sebagai ${JSON_FILE_PATH}.`, 'info');
+            }
+
+
+            // --- WEBSOCKET CONNECTION ---
+            async function connectWebSocket() {
+                // 1. Coba Muat Data JSON
+                const loaded = await loadItemsFromJson();
+                if (!loaded) {
+                    // Jika gagal muat, tambahkan item default
+                    addItem(true); // Tambahkan item default tanpa mengirim update WS
+                } else {
+                    renderItems(); // Render item yang dimuat dari JSON
+                }
+                
+                // 2. Lanjutkan dengan koneksi WS
                 wsStatusText.textContent = 'Menghubungkan...';
                 updateStatusIcon('connecting');
                 setControlsDisabled(true);
@@ -214,7 +218,7 @@
                         updateStatusIcon('connected');
                         setControlsDisabled(false);
                         appendLog('Tersambung ke server WebSocket.', 'info');
-                        sendUpdate(); // Kirim status awal
+                        sendAllUpdate(); // Kirim semua data yang dimuat ke output
                     };
 
                     ws.onclose = (event) => {
@@ -223,14 +227,12 @@
                         updateStatusIcon('disconnected');
                         setControlsDisabled(true);
                         appendLog('Koneksi terputus. Mencoba menghubungkan kembali dalam 3s...', 'error');
-                        setTimeout(connectWebSocket, 3000); // Coba sambung ulang setelah 3 detik
+                        setTimeout(connectWebSocket, 3000); 
                     };
 
                     ws.onerror = (error) => {
                         console.error('WebSocket Control Error:', error);
-                        if (ws.readyState !== WebSocket.CLOSED) {
-                            ws.close();
-                        }
+                        if (ws.readyState !== WebSocket.CLOSED) { ws.close(); }
                     };
 
                 } catch (e) {
@@ -239,7 +241,6 @@
                 }
             }
 
-            // Fungsi untuk mengirim data
             function sendData(data) {
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(data);
@@ -248,96 +249,279 @@
                 }
             }
 
-            // Fungsi untuk mengirim pesan pembaruan konten (UPDATE_CONTENT)
-            function sendUpdate() {
-                // Mengambil nilai dari input teks (yang berisi nama file/jalur relatif)
-                const payload = {
-                    thumbnail: inputThumbnailPath.value, 
-                    judul: inputJudul.value,
-                    caption: inputCaption.value,
-                    showCaption: toggleCaption.checked, // NEW: Status checkbox
-                    sumber: inputSumber.value,
-                };
+            // --- ITEM MANAGEMENT AND RENDERING ---
 
-                const message = {
-                    command: 'UPDATE_CONTENT',
-                    payload: payload
-                };
-
-                sendData(JSON.stringify(message));
-                appendLog('Mengirim pembaruan konten.', 'info');
+            function generateUniqueId() {
+                // Menggunakan waktu + random untuk memastikan ID unik
+                return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
             }
 
-            // Fungsi untuk mengirim perintah toggle visibility (TOGGLE_VISIBILITY)
-            function sendToggle() {
-                const message = {
-                    command: 'TOGGLE_VISIBILITY'
+            // Tambahkan parameter isSilent untuk mencegah pengiriman WS update saat inisialisasi
+            function addItem(isSilent = false) {
+                const newItem = {
+                    id: generateUniqueId(),
+                    thumbnail: 'logo.png', // Default path, ganti dengan file lokal Anda
+                    judul: 'Judul Berita Baru',
+                    caption: 'Ini adalah caption untuk item ini.',
+                    showCaption: true,
+                    sumber: 'Sumber Berita',
+                    isVisible: false // Status fly-in/out
                 };
-                
-                sendData(JSON.stringify(message));
-                appendLog('Mengirim perintah TOGGLE (Fly In/Out).', 'info');
+                newsItems.push(newItem);
+                renderItems();
+                if (!isSilent) {
+                    sendAllUpdate(); // Kirim update untuk menampilkan kartu baru
+                }
             }
 
-            // --- LOGIKA PEMILIHAN FILE ---
-            browseFileBtn.addEventListener('click', () => {
-                if (isConnected) {
-                    hiddenFileInput.click(); // Memicu dialog file
-                } else {
-                    appendLog("Gagal: Koneksi terputus. Tidak dapat membuka dialog berkas.", 'error');
-                }
-            });
-
-            hiddenFileInput.addEventListener('change', (event) => {
-                const file = event.target.files[0];
-                if (file) {
-                    const fileName = file.name; 
-                    inputThumbnailPath.value = fileName; 
-                    appendLog(`Nama berkas dipilih: ${fileName}`, 'info');
-                    if (isConnected) {
-                        debouncedSendUpdate();
-                    }
-                }
-                hiddenFileInput.value = ''; 
-            });
-            // ------------------------------
-
-            // --- LOGIKA SHORTCUT KEY (ENTER) ---
-            document.addEventListener('keydown', (event) => {
-                // Pastikan koneksi aktif dan tombol Enter ditekan
-                if (isConnected && event.key === 'Enter') {
-                    // Hindari menjalankan toggle jika pengguna sedang mengetik di textarea atau input teks biasa.
-                    // Jika elemen aktif (focus) BUKAN tombol, tombol, atau input, jalankan toggle.
-                    const focusedElement = document.activeElement;
-                    const isInput = focusedElement.tagName === 'INPUT' && focusedElement.type !== 'checkbox';
-                    const isTextarea = focusedElement.tagName === 'TEXTAREA';
-                    
-                    if (!isInput && !isTextarea) {
-                        event.preventDefault(); // Mencegah tindakan default (misalnya, mengirimkan form)
-                        sendToggle();
-                    }
-                    // Jika tombol Fly In/Out sedang fokus, browser akan otomatis memicu klik.
-                }
-            });
-            // -----------------------------------
-
-
-            // Event Listeners
-            updateBtn.addEventListener('click', sendUpdate);
-            toggleBtn.addEventListener('click', sendToggle);
+            function removeItem(itemId) {
+                newsItems = newsItems.filter(item => item.id !== itemId);
+                renderItems();
+                sendAllUpdate(); // Kirim update untuk menghapus kartu dari output
+            }
             
-            // Gunakan debounced update untuk semua input teks dan checkbox
-            document.getElementById('control-form').addEventListener('input', (event) => {
-                if (isConnected) {
-                    // Checkbox juga memicu pembaruan
-                    if (event.target.id === 'toggle-caption') {
-                        sendUpdate(); // Checkbox harus segera mengirim update tanpa debounce
-                    } else if (event.target.id !== 'input-thumbnail-path') {
-                        debouncedSendUpdate();
+            // Memperbarui state item saat input berubah
+            function updateItemState(itemId, field, value) {
+                const item = newsItems.find(i => i.id === itemId);
+                if (item) {
+                    item[field] = value;
+                    if (field !== 'thumbnail') { // Thumbnail update handled by specific logic
+                         debouncedSendAllUpdate();
+                    }
+                }
+            }
+
+            // Memperbarui input path thumbnail saat file dipilih
+            function handleFileSelection(event, itemId) {
+                const file = event.target.files[0];
+                const inputPath = document.getElementById(`path-input-${itemId}`);
+
+                if (file) {
+                    const fileName = file.name;
+                    inputPath.value = fileName; 
+                    updateItemState(itemId, 'thumbnail', fileName);
+                    appendLog(`Berkas dipilih untuk ${itemId}: ${fileName}`, 'info');
+                    debouncedSendAllUpdate();
+                }
+                event.target.value = ''; // Reset file input
+            }
+
+            function renderItems() {
+                itemsContainer.innerHTML = ''; // Clear existing items
+
+                newsItems.forEach((item, index) => {
+                    const card = document.createElement('div');
+                    card.id = `item-card-${item.id}`;
+                    
+                    // Gunakan warna hijau untuk item yang aktif
+                    const cardBgClass = item.isVisible ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200';
+                    card.className = `item-card p-4 rounded-lg shadow-md border space-y-3 ${cardBgClass}`;
+                    
+                    // --- HTML Item Card ---
+                    card.innerHTML = `
+                        <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+                            <h3 class="text-lg font-semibold text-gray-700">Item #${index + 1}</h3>
+                            <button data-item-id="${item.id}" class="remove-btn text-red-500 hover:text-red-700 transition duration-150 p-1 rounded">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+
+                        <div class="space-y-3">
+                            <!-- Jalur Relatif Gambar -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600">Jalur Relatif Gambar (Thumbnail)</label>
+                                <div class="flex space-x-2 mt-1">
+                                    <input type="text" id="path-input-${item.id}" value="${item.thumbnail}" placeholder="Nama berkas..."
+                                           class="flex-grow p-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500"
+                                           readonly> 
+                                    <button data-item-id="${item.id}" class="browse-btn bg-indigo-500 text-white text-sm py-2 px-4 rounded-lg hover:bg-indigo-600 transition duration-150 shadow-sm">
+                                        Pilih Berkas
+                                    </button>
+                                </div>
+                                <input type="file" id="file-input-${item.id}" class="hidden" accept="image/*">
+                            </div>
+
+                            <!-- Judul Konten -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600">Judul Konten</label>
+                                <input type="text" data-field="judul" data-item-id="${item.id}" value="${item.judul}" placeholder="Masukkan judul berita"
+                                       class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 mt-1">
+                            </div>
+
+                            <!-- Teks Caption & Toggle -->
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="text-sm font-medium text-gray-600">Teks Caption</label>
+                                    <div class="flex items-center">
+                                        <input type="checkbox" data-field="showCaption" data-item-id="${item.id}" 
+                                               id="toggle-caption-${item.id}" ${item.showCaption ? 'checked' : ''}
+                                               class="form-checkbox h-4 w-4 text-indigo-600 rounded border-gray-300">
+                                        <label for="toggle-caption-${item.id}" class="ml-2 text-xs font-medium text-gray-500">Tampilkan</label>
+                                    </div>
+                                </div>
+                                <textarea data-field="caption" data-item-id="${item.id}" placeholder="Deskripsi singkat konten" rows="2"
+                                          class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500">${item.caption}</textarea>
+                            </div>
+
+                            <!-- Sumber Berita -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600">Sumber Berita</label>
+                                <input type="text" data-field="sumber" data-item-id="${item.id}" value="${item.sumber}" placeholder="cth: javasatu.com"
+                                       class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 mt-1">
+                            </div>
+
+                            <!-- Tombol Fly In/Out Khusus Item -->
+                            <button data-item-id="${item.id}" class="toggle-item-btn w-full text-white font-semibold py-2 rounded-lg transition duration-150 shadow-sm disabled:opacity-50 ${item.isVisible ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}">
+                                ${item.isVisible ? 'Fly Out Item Ini' : 'Fly In Item Ini'}
+                            </button>
+                        </div>
+                    `;
+                    // --- END HTML Item Card ---
+                    
+                    itemsContainer.appendChild(card);
+                });
+                
+                // Panggil ulang listener setelah DOM diperbarui
+                setupItemListeners();
+            }
+
+            // --- EVENT LISTENERS (Dynamic) ---
+            function setupItemListeners() {
+                // Hapus Item
+                document.querySelectorAll('.remove-btn').forEach(btn => {
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        if (confirm('Yakin ingin menghapus item ini?')) {
+                            removeItem(e.currentTarget.dataset.itemId);
+                        }
+                    };
+                });
+                
+                // Input Listener untuk update state dan WebSocket
+                document.querySelectorAll('[data-field]').forEach(input => {
+                    input.oninput = (e) => {
+                        const itemId = e.target.dataset.itemId;
+                        const field = e.target.dataset.field;
+                        let value = e.target.value;
+
+                        if (e.target.type === 'checkbox') {
+                            value = e.target.checked;
+                            // Checkbox tidak perlu debounce, kirim update segera
+                            updateItemState(itemId, field, value);
+                            sendAllUpdate();
+                        } else {
+                            updateItemState(itemId, field, value);
+                        }
+                    };
+                });
+                
+                // Tombol Toggle Item
+                document.querySelectorAll('.toggle-item-btn').forEach(btn => {
+                    btn.onclick = (e) => {
+                        const itemId = e.currentTarget.dataset.itemId;
+                        
+                        // Panggil logika toggle eksklusif
+                        handleExclusiveToggle(itemId); 
+                    };
+                });
+
+                // Pemilihan File (Jalur Relatif)
+                document.querySelectorAll('.browse-btn').forEach(btn => {
+                    btn.onclick = (e) => {
+                        const itemId = e.currentTarget.dataset.itemId;
+                        const fileInput = document.getElementById(`file-input-${itemId}`);
+                        if (fileInput) {
+                            fileInput.click();
+                        }
+                    };
+                });
+
+                document.querySelectorAll('input[type="file"]').forEach(input => {
+                    const itemId = input.id.split('-').pop(); // Ambil ID dari ID elemen
+                    input.onchange = (e) => handleFileSelection(e, itemId);
+                });
+            }
+            
+            // --- LOGIKA TOGGLE EKSKLUSIF ---
+            function handleExclusiveToggle(targetItemId) {
+                const targetItem = newsItems.find(i => i.id === targetItemId);
+                if (!targetItem) return;
+
+                const isCurrentlyVisible = targetItem.isVisible;
+                let shouldReRender = false;
+
+                if (isCurrentlyVisible) {
+                    // Kasus 1: Matikan item target (Fly Out)
+                    targetItem.isVisible = false;
+                    appendLog(`Item ${targetItemId} Fly Out.`, 'info');
+                    shouldReRender = true;
+                } else {
+                    // Kasus 2: Aktifkan item target (Fly In), matikan yang lain
+                    
+                    // 2a. Matikan item yang sedang aktif
+                    const activeItem = newsItems.find(i => i.isVisible);
+                    if (activeItem) {
+                        activeItem.isVisible = false;
+                        appendLog(`Item ${activeItem.id} Fly Out (Otomatis).`, 'info');
+                        shouldReRender = true;
+                    }
+                    
+                    // 2b. Aktifkan item target
+                    targetItem.isVisible = true;
+                    appendLog(`Item ${targetItemId} Fly In.`, 'info');
+                    shouldReRender = true;
+                }
+                
+                if (shouldReRender) {
+                    renderItems(); // Render ulang untuk memperbarui UI tombol dan warna kartu
+                    sendAllUpdate(); // Kirim status baru ke output
+                }
+            }
+
+
+            // --- WEBSOCKET COMMANDS ---
+
+            function sendAllUpdate() {
+                const commandObject = {
+                    command: 'UPDATE_CONTENT_ALL', // Perintah baru untuk sinkronisasi seluruh daftar
+                    payload: newsItems.map(item => ({
+                         id: item.id,
+                         thumbnail: item.thumbnail,
+                         judul: item.judul,
+                         caption: item.caption,
+                         showCaption: item.showCaption,
+                         sumber: item.sumber,
+                         isVisible: item.isVisible
+                    }))
+                };
+                sendData(JSON.stringify(commandObject));
+                appendLog(`Mengirim sinkronisasi ${newsItems.length} item.`, 'info');
+            }
+
+            // --- INITIALIZATION ---
+            
+            addItemBtn.addEventListener('click', addItem);
+            sendAllUpdateBtn.addEventListener('click', sendAllUpdate);
+            saveJsonBtn.addEventListener('click', downloadJsonFile); // Tambahkan listener untuk unduh JSON
+            
+            // Shortcut key (ENTER) untuk toggle item pertama
+            document.addEventListener('keydown', (event) => {
+                if (isConnected && event.key === 'Enter' && newsItems.length > 0) {
+                    const focusedElement = document.activeElement;
+                    // Pastikan fokus tidak berada pada input teks, textarea, atau tombol.
+                    const isInputOrTextarea = ['INPUT', 'TEXTAREA'].includes(focusedElement.tagName) && focusedElement.type !== 'checkbox';
+                    const isButton = focusedElement.tagName === 'BUTTON';
+                    
+                    if (!isInputOrTextarea && !isButton) {
+                        event.preventDefault(); 
+                        // Toggle item pertama
+                        const firstItem = newsItems[0];
+                        handleExclusiveToggle(firstItem.id); 
                     }
                 }
             });
 
-            // Mulai koneksi
+            // Mulai koneksi (memuat JSON di dalamnya)
             connectWebSocket();
         });
     </script>

@@ -1,0 +1,20 @@
+[
+    {
+        "id": "mhyrvdbr1hfec",
+        "thumbnail": "_MG_0905.JPG",
+        "judul": "Judul 1",
+        "caption": "Caption 1",
+        "showCaption": true,
+        "sumber": "Sumber 1",
+        "isVisible": false
+    },
+    {
+        "id": "mhyrvmorc88t5",
+        "thumbnail": "lusiani-700x394.jpeg",
+        "judul": "Judul 2",
+        "caption": "Caption 2",
+        "showCaption": true,
+        "sumber": "Sumber 2",
+        "isVisible": false
+    }
+]
