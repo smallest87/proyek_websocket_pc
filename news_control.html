@@ -42,6 +42,20 @@
             </svg>
             <span id="ws-status-text">Menghubungkan ke WebSocket...</span>
         </div>
+
+        <!-- KONTROL ARAH FLY BARU -->
+        <div class="mb-6 p-4 bg-white rounded-lg shadow-md border border-gray-200">
+            <label for="fly-direction-select" class="block text-sm font-medium text-gray-700 mb-2">
+                Pilih Arah Animasi Fly (Berlaku untuk Semua Kartu)
+            </label>
+            <select id="fly-direction-select" 
+                    class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                <option value="left">Dari Kiri (Default)</option>
+                <option value="right">Dari Kanan</option>
+                <option value="top">Dari Atas</option>
+                <option value="bottom">Dari Bawah</option>
+            </select>
+        </div>
         
         <!-- Item List Container -->
         <div id="items-container" class="space-y-4 mb-6">
@@ -79,18 +93,21 @@
             const addItemBtn = document.getElementById('add-item-btn');
             const sendAllUpdateBtn = document.getElementById('send-all-update-btn');
             const saveJsonBtn = document.getElementById('save-json-btn');
+            const flyDirectionSelect = document.getElementById('fly-direction-select'); // Kontrol Arah
             const wsStatusText = document.getElementById('ws-status-text');
             const wsStatusIcon = document.getElementById('ws-status-icon');
             const logDiv = document.getElementById('log');
 
             // PENGATURAN WEBSOCKET
             const port = 8080;
-            const ip = "192.168.0.100";
+            // const ip = "192.168.0.100";
+            const ip = "10.202.220.208";
             const wsUrl = `ws://${ip}:${port}`;
             
             let ws = null;
             let isConnected = false;
             let newsItems = []; // STATE: Array untuk menyimpan semua item berita
+            let flyDirection = 'left'; // STATE BARU: Arah Fly Global
             const JSON_FILE_PATH = 'berita.json'; // Lokasi file untuk dimuat
 
             // SVG Icons (connected, connecting, disconnected)
@@ -134,7 +151,8 @@
             function setControlsDisabled(disabled) {
                 addItemBtn.disabled = disabled;
                 sendAllUpdateBtn.disabled = disabled;
-                saveJsonBtn.disabled = disabled; // Tambahkan tombol save
+                saveJsonBtn.disabled = disabled;
+                flyDirectionSelect.disabled = disabled;
                 // Menonaktifkan semua kontrol item dinamis
                 document.querySelectorAll('#items-container input, #items-container textarea, #items-container button').forEach(el => {
                     el.disabled = disabled;
@@ -155,12 +173,16 @@
                     }
                     const data = await response.json();
                     
-                    // Memastikan data yang dimuat adalah array dengan struktur yang benar
                     if (Array.isArray(data) && data.length > 0 && data[0].id) {
+                        // Cek dan set flyDirection jika ada di data (meskipun kita tidak menyimpannya di sini, ini untuk fleksibilitas)
+                        if (data.flyDirection) {
+                            flyDirection = data.flyDirection;
+                            flyDirectionSelect.value = flyDirection;
+                        }
+                        
                         newsItems = data.map(item => ({
                             ...item,
-                            // Pastikan isVisible diatur ulang ke false saat dimuat,
-                            // agar kartu tidak langsung muncul saat app dibuka
+                            // Pastikan isVisible diatur ulang ke false saat dimuat
                             isVisible: false 
                         }));
                         appendLog(`Berhasil memuat ${newsItems.length} item dari ${JSON_FILE_PATH}.`, 'info');
@@ -176,7 +198,18 @@
             }
             
             function downloadJsonFile() {
-                const data = JSON.stringify(newsItems, null, 4); // Format JSON dengan indentasi
+                // Buat salinan data dengan direction saat ini (opsional untuk future loading)
+                const dataToSave = newsItems.map(item => {
+                    const { isVisible, ...rest } = item;
+                    return rest;
+                });
+                // Menambahkan flyDirection ke objek root JSON untuk disimpan
+                const savePayload = {
+                    flyDirection: flyDirection,
+                    items: dataToSave
+                };
+
+                const data = JSON.stringify(dataToSave, null, 4); // Simpan hanya array item
                 const blob = new Blob([data], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 
@@ -391,6 +424,7 @@
                 document.querySelectorAll('.remove-btn').forEach(btn => {
                     btn.onclick = (e) => {
                         e.stopPropagation();
+                        // Menggunakan custom modal UI jika ini adalah aplikasi yang berjalan di iFrame
                         if (confirm('Yakin ingin menghapus item ini?')) {
                             removeItem(e.currentTarget.dataset.itemId);
                         }
@@ -483,7 +517,9 @@
 
             function sendAllUpdate() {
                 const commandObject = {
-                    command: 'UPDATE_CONTENT_ALL', // Perintah baru untuk sinkronisasi seluruh daftar
+                    command: 'UPDATE_CONTENT_ALL', 
+                    // STATE GLOBAL BARU: Arah Fly
+                    flyDirection: flyDirection, 
                     payload: newsItems.map(item => ({
                          id: item.id,
                          thumbnail: item.thumbnail,
@@ -495,15 +531,23 @@
                     }))
                 };
                 sendData(JSON.stringify(commandObject));
-                appendLog(`Mengirim sinkronisasi ${newsItems.length} item.`, 'info');
+                appendLog(`Mengirim sinkronisasi ${newsItems.length} item. Arah: ${flyDirection}`, 'info');
             }
 
             // --- INITIALIZATION ---
             
             addItemBtn.addEventListener('click', addItem);
             sendAllUpdateBtn.addEventListener('click', sendAllUpdate);
-            saveJsonBtn.addEventListener('click', downloadJsonFile); // Tambahkan listener untuk unduh JSON
+            saveJsonBtn.addEventListener('click', downloadJsonFile);
             
+            // Listener untuk kontrol arah Fly
+            flyDirectionSelect.addEventListener('change', (e) => {
+                flyDirection = e.target.value;
+                appendLog(`Arah Fly diubah menjadi: ${flyDirection}`, 'info');
+                // Kirim update agar tampilan merespons perubahan CSS
+                sendAllUpdate(); 
+            });
+
             // Shortcut key (ENTER) untuk toggle item pertama
             document.addEventListener('keydown', (event) => {
                 if (isConnected && event.key === 'Enter' && newsItems.length > 0) {

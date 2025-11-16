@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OBS WebSocket Remote Control Sederhana</title>
+    <!-- Load Tailwind CSS untuk styling modern -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Gaya Kustom */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a1a2e;
+            color: #e4e4e7;
+        }
+        .card {
+            background-color: #2c2c54;
+        }
+        .btn-action {
+            transition: all 0.15s;
+            box-shadow: 0 4px #1a1a2e;
+        }
+        .btn-action:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 5px #1a1a2e;
+        }
+        .btn-action:active:not(:disabled) {
+            transform: translateY(2px);
+            box-shadow: none;
+        }
+        .btn-action:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        .status-connected {
+            background-color: #38c172;
+        }
+        .status-disconnected {
+            background-color: #e3342f;
+        }
+        #crypto-warning {
+            color: #ffc107;
+            border: 1px solid #ffc107;
+            padding: 8px;
+            border-radius: 8px;
+            display: none; /* Disembunyikan secara default */
+            font-weight: bold;
+        }
+        #protocol-warning {
+            color: #ffc107;
+            border: 1px solid #ffc107;
+            padding: 8px;
+            border-radius: 8px;
+            display: none;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex items-center justify-center min-h-screen">
+    <div class="w-full max-w-lg card p-6 md:p-8 rounded-xl shadow-2xl space-y-6">
+        <h1 class="text-3xl font-bold text-center text-indigo-300">OBS Remote Controller Sederhana</h1>
+        <div class="text-center">
+            <span id="status-indicator" class="inline-block px-3 py-1 text-sm font-semibold rounded-full status-disconnected">Disconnected</span>
+        </div>
+        
+        <!-- Peringatan Kriptografi Baru -->
+        <div id="crypto-warning">
+            PERINGATAN KRITIS: Browser Anda tidak mendukung Web Crypto API. Harap gunakan Chrome, Firefox, atau Edge versi terbaru.
+        </div>
+        <!-- Peringatan Protokol Baru -->
+        <div id="protocol-warning">
+            PERINGATAN PROTOKOL: Skrip dimuat melalui `file://`. Mohon jalankan server lokal (`http://localhost:8000`) untuk mengaktifkan otentikasi.
+        </div>
+
+        <!-- Connection Settings -->
+        <div class="space-y-3 p-4 bg-gray-700/50 rounded-lg">
+            <!-- Input untuk Kata Sandi WebSocket -->
+            <input type="text" id="ws-password" placeholder="WebSocket Password" class="w-full p-2 rounded-lg bg-gray-800 text-white border border-indigo-500 focus:ring-2 focus:ring-indigo-400">
+            <button onclick="connectWebSocket()" class="w-full p-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-md transition duration-150">Connect to OBS</button>
+        </div>
+        
+        <!-- Controls -->
+        <div class="space-y-4 pt-4 border-t border-gray-600">
+            <p class="text-lg font-semibold text-gray-300">Kontrol Dasar (Ganti nama tombol sesuai adegan Anda)</p>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <!-- Tombol dinonaktifkan secara default -->
+                <button id="btn-scene-1" disabled onclick="setScene('Scene 1')" class="btn-action bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl">
+                    Adegan A
+                </button>
+                <button id="btn-scene-2" disabled onclick="setScene('Scene 2')" class="btn-action bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl">
+                    Adegan B
+                </button>
+            </div>
+
+            <p class="text-lg font-semibold text-gray-300 pt-4">Streaming & Recording</p>
+            <div class="grid grid-cols-2 gap-4">
+                <!-- Tombol dinonaktifkan secara default -->
+                <button id="btn-stream" disabled onclick="toggleStreaming()" class="btn-action bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl">
+                    Toggle Stream
+                </button>
+                <button id="btn-record" disabled onclick="toggleRecording()" class="btn-action bg-red-800 hover:bg-red-900 text-white font-bold py-3 rounded-xl">
+                    Toggle Record
+                </button>
+            </div>
+        </div>
+        
+        <!-- Log Messages -->
+        <div id="log-messages" class="text-xs text-gray-400 h-20 overflow-y-auto bg-gray-800 p-2 rounded-lg">
+            <!-- Pesan log akan muncul di sini -->
+        </div>
+    </div>
+
+    <script>
+        // Default OBS WebSocket settings
+        // *** PERBAIKAN: Mengambil hostname dari URL saat ini dan menggunakan port OBS (4455) ***
+        const OBS_WS_PORT = 4455;
+        const WS_URL = `ws://${window.location.hostname}:${OBS_WS_PORT}`; 
+        
+        let ws = null;
+        let isAuthenticated = false;
+
+        // --- Logging Utilities ---
+        function appendLog(message, type = 'info') {
+            const logElement = document.getElementById('log-messages');
+            const p = document.createElement('p');
+            p.textContent = `[${new Date().toLocaleTimeString()}] [${type.toUpperCase()}] ${message}`;
+            
+            if (type === 'error') p.style.color = '#e3342f';
+            else if (type === 'success') p.style.color = '#38c172';
+            else if (type === 'warning') p.style.color = '#ffc107'; // Warna kuning untuk peringatan
+            else p.style.color = '#a0aec0';
+
+            logElement.prepend(p);
+            if (logElement.children.length > 50) {
+                logElement.removeChild(logElement.lastChild);
+            }
+        }
+
+        function updateStatus(connected) {
+            const indicator = document.getElementById('status-indicator');
+            if (connected) {
+                indicator.textContent = 'Connected & Identified';
+                indicator.className = 'inline-block px-3 py-1 text-sm font-semibold rounded-full status-connected';
+            } else {
+                indicator.textContent = 'Disconnected';
+                indicator.className = 'inline-block px-3 py-1 text-sm font-semibold rounded-full status-disconnected';
+            }
+            
+            // Mengaktifkan/menonaktifkan tombol
+            const buttons = [
+                document.getElementById('btn-scene-1'),
+                document.getElementById('btn-scene-2'),
+                document.getElementById('btn-stream'),
+                document.getElementById('btn-record')
+            ];
+
+            buttons.forEach(btn => {
+                if (btn) btn.disabled = !connected;
+            });
+        }
+
+        // --- WebSocket Connection ---
+
+        function connectWebSocket() {
+            // Cek protokol file
+            if (window.location.protocol === 'file:') {
+                document.getElementById('protocol-warning').style.display = 'block';
+                return;
+            } else {
+                 document.getElementById('protocol-warning').style.display = 'none';
+            }
+
+            // Cek dukungan Web Crypto API sebelum mencoba koneksi
+            if (typeof window.crypto.subtle === 'undefined') {
+                document.getElementById('crypto-warning').style.display = 'block';
+                return;
+            } else {
+                 document.getElementById('crypto-warning').style.display = 'none';
+            }
+
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                appendLog("Sudah terhubung.", 'info');
+                return;
+            }
+            
+            // *** FIX PENTING: Mengosongkan password karena OBS Auth Disabled ***
+            const passwordInput = document.getElementById('ws-password');
+            if (passwordInput.value.trim() !== "") {
+                 appendLog("PERHATIAN: Password dikosongkan karena OBS Anda non-otentikasi.", 'warning');
+                 passwordInput.value = "";
+                 localStorage.removeItem('obs-ws-password');
+            }
+            // *** AKHIR FIX ***
+
+            updateStatus(false);
+            isAuthenticated = false;
+            
+            appendLog(`Mencoba terhubung ke ${WS_URL}...`, 'info');
+            
+            try {
+                ws = new WebSocket(WS_URL);
+            } catch (error) {
+                appendLog(`Error membuat WebSocket: ${error.message}`, 'error');
+                return;
+            }
+
+            ws.onopen = () => {
+                appendLog("Koneksi berhasil. Menunggu tantangan otentikasi.", 'success');
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                // 1. Handle Authentication Challenge (op: 8) - Hello
+                if (data.op === 8) { 
+                    appendLog("Menerima Hello. Mengirim Identify.", 'info');
+                    sendIdentify(data.d.authentication);
+                } 
+                
+                // 2. Handle Authentication Success (op: 0, event: Identified)
+                if (data.op === 0 && data.d.eventType === 'Identified') {
+                    isAuthenticated = true;
+                    updateStatus(true); // Aktifkan tombol
+                    appendLog("Otentikasi berhasil!", 'success');
+                }
+
+                // 3. Handle Authentication Failure (op: 2) - Close
+                if (data.op === 2) {
+                    isAuthenticated = false;
+                    updateStatus(false);
+                    // Dapatkan reason spesifik dari server jika tersedia
+                    const reason = data.d.status === 4009 ? "Kata sandi salah atau hash gagal." : "Server menutup koneksi.";
+                    appendLog(`Otentikasi Gagal: ${reason} (${data.d.status}). Periksa kata sandi.`, 'error');
+                    ws.close();
+                }
+
+                // 4. Handle RequestResponse (op: 7)
+                if (data.op === 7) { 
+                    if (data.d.requestStatus.result) {
+                        appendLog(`Permintaan ${data.d.requestType} berhasil.`, 'success');
+                    } else {
+                        // Request failed logic
+                        appendLog(`Permintaan ${data.d.requestType} gagal: ${data.d.requestStatus.comment}`, 'error');
+                    }
+                }
+            };
+
+            ws.onclose = (event) => {
+                updateStatus(false);
+                isAuthenticated = false;
+                // Jika event.code adalah 4009, itu adalah kegagalan otentikasi
+                const reason = event.code === 4009 ? "Gagal otentikasi (4009). Cek password." : (event.reason || 'Server terputus.');
+                appendLog(`Koneksi terputus. Kode: ${event.code}. Alasan: ${reason}`, 'error');
+            };
+
+            ws.onerror = (error) => {
+                appendLog(`WebSocket Error: ${error.message}`, 'error');
+            };
+        }
+        
+        // Fungsi Hashing SHA-256 (Diperlukan untuk Otentikasi OBS WS 5.0+)
+        function sha256(str) {
+            if (typeof window.crypto.subtle === 'undefined') {
+                return Promise.reject(new Error("Browser tidak mendukung Web Crypto API. Gagal hash password."));
+            }
+            const msgUint8 = new TextEncoder().encode(str);
+            return window.crypto.subtle.digest('SHA-256', msgUint8)
+                .then(hashBuffer => {
+                    const hashArray = Array.from(new Uint8Array(hashBuffer));
+                    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                });
+        }
+        
+        async function sendIdentify(authData) {
+            // *** Password sudah dikosongkan di connectWebSocket() ***
+            const password = document.getElementById('ws-password').value.trim();
+            
+            let authResponse = null;
+
+            if (authData) {
+                // OBS memerlukan otentikasi
+                // Karena kita sudah mengosongkan input password, jika ada authData di sini,
+                // berarti pengguna mencoba terhubung saat otentikasi aktif, yang tidak sesuai dengan OBS Anda
+                if (password === "") {
+                    appendLog("OBS memerlukan otentikasi. Masukkan kata sandi.", 'error');
+                    ws.close();
+                    return;
+                }
+                
+                try {
+                    // Tahap 1: secret = SHA256(password + salt)
+                    const secretString = password + authData.salt;
+                    const secretHash = await sha256(secretString);
+                    appendLog(`DEBUG: secretHash (Tahap 1) berhasil dihitung.`, 'warning');
+                    
+                    // Tahap 2: response = SHA256(secret + challenge)
+                    const authString = secretHash + authData.challenge;
+                    authResponse = await sha256(authString);
+                    appendLog(`DEBUG: authResponse (Tahap 2) berhasil dihitung.`, 'warning');
+
+                    // Opsional: Log nilai authResponse yang dikirim untuk verifikasi manual
+                    console.log("FINAL AUTH RESPONSE:", authResponse);
+                    
+                } catch (e) {
+                    // FIX: Logging lebih eksplisit jika proses hashing gagal di browser
+                    appendLog(`KRITIS: Proses hashing SHA-256 gagal: ${e.message}`, 'error');
+                    ws.close();
+                    return;
+                }
+            } else {
+                // OBS tidak memerlukan otentikasi (Ini adalah skenario yang kita harapkan)
+                appendLog("OBS berjalan tanpa otentikasi. Lanjut tanpa kata sandi.", 'warning');
+            }
+            
+             const identifyPayload = {
+                op: 1, // Identify
+                d: {
+                    rpcVersion: 1,
+                    authentication: authResponse, // Akan bernilai null atau undefined, yang benar untuk non-auth
+                    eventSubscriptions: 2 | 4 | 8 | 16 // Subscribe ke event dasar
+                }
+            };
+
+            ws.send(JSON.stringify(identifyPayload));
+            appendLog("Mengirim payload Identify.", 'info');
+        }
+
+        // --- OBS WebSocket API Commands ---
+
+        function sendRequest(requestType, requestData = {}) {
+            // Cek otentikasi
+            if (!ws || ws.readyState !== WebSocket.OPEN || !isAuthenticated) {
+                appendLog("Gagal mengirim permintaan. Tidak terhubung atau belum terotentikasi.", 'error');
+                return;
+            }
+            
+            const payload = {
+                op: 6, // Request
+                d: {
+                    requestType: requestType,
+                    requestId: crypto.randomUUID(),
+                    requestData: requestData
+                }
+            };
+            
+            ws.send(JSON.stringify(payload));
+            appendLog(`Mengirim permintaan: ${requestType}`, 'info');
+        }
+
+        // --- Control Functions ---
+
+        window.setScene = (sceneName) => {
+            sendRequest('SetCurrentProgramScene', { sceneName: sceneName });
+        };
+
+        window.toggleStreaming = () => {
+            sendRequest('ToggleStream');
+        };
+
+        window.toggleRecording = () => {
+            sendRequest('ToggleRecord');
+        };
+        
+        // Start connection attempt on load
+        window.onload = () => {
+            // Memuat password dari localStorage
+            const storedPassword = localStorage.getItem('obs-ws-password');
+            if (storedPassword) {
+                document.getElementById('ws-password').value = storedPassword;
+            }
+            
+            // Menyimpan password ke localStorage saat input berubah
+            document.getElementById('ws-password').addEventListener('change', (e) => {
+                localStorage.setItem('obs-ws-password', e.target.value);
+            });
+            
+            // Pengecekan Protokol di onload
+            if (window.location.protocol === 'file:') {
+                document.getElementById('protocol-warning').style.display = 'block';
+            }
+
+            // Inisialisasi status visual saat dimuat
+            updateStatus(false); 
+        };
+        
+    </script>
+</body>
+</html>
